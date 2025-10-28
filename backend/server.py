@@ -1,0 +1,783 @@
+from fastapi import FastAPI, APIRouter, HTTPException, Depends, status, UploadFile, File, Form
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from dotenv import load_dotenv
+from starlette.middleware.cors import CORSMiddleware
+from motor.motor_asyncio import AsyncIOMotorClient
+import os
+import logging
+from pathlib import Path
+from pydantic import BaseModel, Field, ConfigDict, EmailStr
+from typing import List, Optional
+import uuid
+from datetime import datetime, timezone, timedelta
+from passlib.context import CryptContext
+from jose import JWTError, jwt
+import asyncio
+from telethon import TelegramClient
+from telethon.sessions import StringSession
+from telethon.tl.functions.channels import CreateChannelRequest
+from telethon.tl.functions.messages import ExportChatInviteRequest
+import base64
+import io
+import qrcode
+
+
+ROOT_DIR = Path(__file__).parent
+load_dotenv(ROOT_DIR / '.env')
+
+# MongoDB connection
+mongo_url = os.environ['MONGO_URL']
+client = AsyncIOMotorClient(mongo_url)
+db = client[os.environ['DB_NAME']]
+
+# Security
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+security = HTTPBearer()
+SECRET_KEY = os.environ.get("JWT_SECRET_KEY", "your-secret-key-change-in-production")
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 43200  # 30 days
+
+# Telegram clients storage (in-memory for demo, use Redis in production)
+telegram_clients = {}
+
+# Create the main app
+app = FastAPI()
+api_router = APIRouter(prefix="/api")
+
+# Logger
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+
+# ========== MODELS ==========
+
+class User(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    email: EmailStr
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    telegram_session: Optional[str] = None
+    telegram_user_id: Optional[int] = None
+    telegram_channel_id: Optional[int] = None
+    telegram_channel_invite: Optional[str] = None
+    telegram_bot_token: Optional[str] = None
+    telegram_bot_username: Optional[str] = None
+    cloudinary_cloud_name: Optional[str] = None
+    cloudinary_api_key: Optional[str] = None
+    cloudinary_api_secret: Optional[str] = None
+    imgbb_api_key: Optional[str] = None
+
+class UserSignup(BaseModel):
+    email: EmailStr
+    password: str
+
+class UserLogin(BaseModel):
+    email: EmailStr
+    password: str
+
+class TokenResponse(BaseModel):
+    access_token: str
+    token_type: str
+
+class FileMetadata(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    user_id: str
+    name: str
+    size: int
+    mime_type: str
+    telegram_msg_id: int
+    thumbnail_url: Optional[str] = None
+    thumbnail_provider: Optional[str] = None  # 'cloudinary' or 'imgbb'
+    folder_id: Optional[str] = None
+    is_trashed: bool = False
+    is_public: bool = False
+    share_token: Optional[str] = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class FileCreate(BaseModel):
+    name: str
+    size: int
+    mime_type: str
+    telegram_msg_id: int
+    thumbnail_url: Optional[str] = None
+    thumbnail_provider: Optional[str] = None
+    folder_id: Optional[str] = None
+
+class FileUpdate(BaseModel):
+    name: Optional[str] = None
+    folder_id: Optional[str] = None
+
+class Folder(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    user_id: str
+    name: str
+    parent_id: Optional[str] = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class FolderCreate(BaseModel):
+    name: str
+    parent_id: Optional[str] = None
+
+class ApiKeysUpdate(BaseModel):
+    cloudinary_cloud_name: Optional[str] = None
+    cloudinary_api_key: Optional[str] = None
+    cloudinary_api_secret: Optional[str] = None
+    imgbb_api_key: Optional[str] = None
+
+class BotTokenUpdate(BaseModel):
+    bot_token: str
+
+class BotTokenUpdate(BaseModel):
+    bot_token: str
+
+class TelegramLoginRequest(BaseModel):
+    phone: Optional[str] = None
+
+class TelegramCodeVerify(BaseModel):
+    phone: str
+    code: str
+    phone_code_hash: str
+
+class TelegramQRRequest(BaseModel):
+    session_id: str
+
+class ChannelIdUpdate(BaseModel):
+    channel_id: int
+
+
+# ========== AUTH HELPERS ==========
+
+def verify_password(plain_password, hashed_password):
+    return pwd_context.verify(plain_password, hashed_password)
+
+def get_password_hash(password):
+    return pwd_context.hash(password)
+
+def create_access_token(data: dict):
+    to_encode = data.copy()
+    expire = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    to_encode.update({"exp": expire})
+    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    return encoded_jwt
+
+async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    try:
+        token = credentials.credentials
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id: str = payload.get("sub")
+        if user_id is None:
+            raise HTTPException(status_code=401, detail="Invalid token")
+        
+        user = await db.users.find_one({"id": user_id}, {"_id": 0, "hashed_password": 0})
+        if user is None:
+            raise HTTPException(status_code=401, detail="User not found")
+        return User(**user)
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+
+# ========== AUTH ROUTES ==========
+
+@api_router.post("/auth/signup", response_model=TokenResponse)
+async def signup(user_data: UserSignup):
+    # Check if user exists
+    existing = await db.users.find_one({"email": user_data.email})
+    if existing:
+        raise HTTPException(status_code=400, detail="Email already registered")
+    
+    # Create user
+    user = User(email=user_data.email)
+    user_dict = user.model_dump()
+    user_dict['hashed_password'] = get_password_hash(user_data.password)
+    user_dict['created_at'] = user_dict['created_at'].isoformat()
+    
+    await db.users.insert_one(user_dict)
+    
+    # Create token
+    access_token = create_access_token({"sub": user.id})
+    return TokenResponse(access_token=access_token, token_type="bearer")
+
+@api_router.post("/auth/login", response_model=TokenResponse)
+async def login(user_data: UserLogin):
+    user = await db.users.find_one({"email": user_data.email})
+    if not user or not verify_password(user_data.password, user.get('hashed_password', '')):
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+    
+    access_token = create_access_token({"sub": user['id']})
+    return TokenResponse(access_token=access_token, token_type="bearer")
+
+@api_router.get("/auth/me", response_model=User)
+async def get_me(current_user: User = Depends(get_current_user)):
+    return current_user
+
+
+# ========== TELEGRAM ROUTES ==========
+
+@api_router.post("/telegram/request-qr")
+async def request_qr_code(current_user: User = Depends(get_current_user)):
+    """Generate QR code for Telegram login"""
+    try:
+        # Create a temporary session
+        session_id = str(uuid.uuid4())
+        client = TelegramClient(
+            StringSession(),
+            int(os.environ.get('TELEGRAM_API_ID', '0')),
+            os.environ.get('TELEGRAM_API_HASH', '')
+        )
+        
+        await client.connect()
+        qr_login = await client.qr_login()
+        
+        # Generate QR code image
+        qr = qrcode.QRCode(version=1, box_size=10, border=5)
+        qr.add_data(qr_login.url)
+        qr.make(fit=True)
+        
+        img = qr.make_image(fill_color="black", back_color="white")
+        buffer = io.BytesIO()
+        img.save(buffer, format='PNG')
+        qr_image = base64.b64encode(buffer.getvalue()).decode()
+        
+        # Store client temporarily
+        telegram_clients[session_id] = {
+            'client': client,
+            'qr_login': qr_login,
+            'user_id': current_user.id
+        }
+        
+        return {
+            "session_id": session_id,
+            "qr_code": f"data:image/png;base64,{qr_image}",
+            "url": qr_login.url
+        }
+    except Exception as e:
+        logger.error(f"QR generation error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to generate QR code: {str(e)}")
+
+@api_router.post("/telegram/verify-qr")
+async def verify_qr_login(request: TelegramQRRequest, current_user: User = Depends(get_current_user)):
+    """Check if QR code was scanned and complete login"""
+    session_data = telegram_clients.get(request.session_id)
+    if not session_data:
+        raise HTTPException(status_code=404, detail="Session not found")
+    
+    try:
+        client = session_data['client']
+        qr_login = session_data['qr_login']
+        
+        # Wait for QR login
+        await qr_login.wait(timeout=5)
+        me = await client.get_me()
+        
+        # Save session
+        session_string = StringSession.save(client.session)
+        
+        # Create private channel
+        result = await client(CreateChannelRequest(
+            title='TeleStore Files',
+            about='Private storage for TeleStore',
+            megagroup=False
+        ))
+        
+        # Get the channel ID (Telegram uses -100 prefix for channel IDs)
+        channel = result.chats[0]
+        channel_id = -1000000000000 - channel.id  # Convert to proper channel ID format
+        
+        # Try to export invite link
+        invite_link = None
+        try:
+            invite_result = await client(ExportChatInviteRequest(
+                peer=channel,
+                legacy_revoke_permanent=False
+            ))
+            invite_link = invite_result.link
+        except Exception as e:
+            logger.warning(f"Failed to export invite link: {str(e)}")
+            # Continue without invite link
+        
+        # Update user
+        await db.users.update_one(
+            {"id": current_user.id},
+            {"$set": {
+                "telegram_session": session_string,
+                "telegram_user_id": me.id,
+                "telegram_channel_id": channel_id,
+                "telegram_channel_invite": invite_link
+            }}
+        )
+        
+        # Cleanup
+        await client.disconnect()
+        del telegram_clients[request.session_id]
+        
+        return {
+            "success": True,
+            "telegram_user_id": me.id,
+            "channel_id": channel_id,
+            "channel_invite": invite_link
+        }
+    except asyncio.TimeoutError:
+        return {"success": False, "message": "QR code not scanned yet"}
+    except Exception as e:
+        logger.error(f"QR verification error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@api_router.post("/telegram/request-code")
+async def request_phone_code(request: TelegramLoginRequest, current_user: User = Depends(get_current_user)):
+    """Request verification code for phone login"""
+    try:
+        session_id = str(uuid.uuid4())
+        client = TelegramClient(
+            StringSession(),
+            int(os.environ.get('TELEGRAM_API_ID', '0')),
+            os.environ.get('TELEGRAM_API_HASH', '')
+        )
+        
+        await client.connect()
+        result = await client.send_code_request(request.phone)
+        
+        telegram_clients[session_id] = {
+            'client': client,
+            'phone': request.phone,
+            'phone_code_hash': result.phone_code_hash,
+            'user_id': current_user.id
+        }
+        
+        return {
+            "session_id": session_id,
+            "phone_code_hash": result.phone_code_hash,
+            "message": "Code sent to your Telegram"
+        }
+    except Exception as e:
+        logger.error(f"Phone code request error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@api_router.post("/telegram/verify-code")
+async def verify_phone_code(request: TelegramCodeVerify, current_user: User = Depends(get_current_user)):
+    """Verify phone code and complete login"""
+    # Find session by phone and phone_code_hash
+    session_data = None
+    session_id = None
+    for sid, data in telegram_clients.items():
+        if data.get('phone') == request.phone and data.get('phone_code_hash') == request.phone_code_hash:
+            session_data = data
+            session_id = sid
+            break
+    
+    if not session_data:
+        raise HTTPException(status_code=404, detail="Session not found")
+    
+    try:
+        client = session_data['client']
+        
+        # Sign in with code
+        await client.sign_in(request.phone, request.code, phone_code_hash=request.phone_code_hash)
+        me = await client.get_me()
+        
+        # Save session
+        session_string = StringSession.save(client.session)
+        
+        # Create private channel
+        result = await client(CreateChannelRequest(
+            title='TeleStore Files',
+            about='Private storage for TeleStore',
+            megagroup=False
+        ))
+        
+        # Get the channel ID (Telegram uses -100 prefix for channel IDs)
+        channel = result.chats[0]
+        channel_id = -1000000000000 - channel.id  # Convert to proper channel ID format
+        
+        # Try to export invite link
+        invite_link = None
+        try:
+            invite_result = await client(ExportChatInviteRequest(
+                peer=channel,
+                legacy_revoke_permanent=False
+            ))
+            invite_link = invite_result.link
+        except Exception as e:
+            logger.warning(f"Failed to export invite link: {str(e)}")
+            # Continue without invite link
+        
+        # Update user
+        await db.users.update_one(
+            {"id": current_user.id},
+            {"$set": {
+                "telegram_session": session_string,
+                "telegram_user_id": me.id,
+                "telegram_channel_id": channel_id,
+                "telegram_channel_invite": invite_link
+            }}
+        )
+        
+        # Cleanup
+        await client.disconnect()
+        del telegram_clients[session_id]
+        
+        return {
+            "success": True,
+            "telegram_user_id": me.id,
+            "channel_id": channel_id,
+            "channel_invite": invite_link
+        }
+    except Exception as e:
+        logger.error(f"Code verification error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@api_router.post("/telegram/disconnect")
+async def disconnect_telegram(current_user: User = Depends(get_current_user)):
+    """Disconnect Telegram account"""
+    await db.users.update_one(
+        {"id": current_user.id},
+        {"$set": {
+            "telegram_session": None,
+            "telegram_user_id": None,
+            "telegram_channel_id": None,
+            "telegram_channel_invite": None
+        }}
+    )
+    return {"success": True}
+
+@api_router.post("/telegram/update-channel")
+async def update_channel_id(request: ChannelIdUpdate, current_user: User = Depends(get_current_user)):
+    """Manually update channel ID"""
+    if not current_user.telegram_session:
+        raise HTTPException(status_code=400, detail="Please connect Telegram first")
+    
+    await db.users.update_one(
+        {"id": current_user.id},
+        {"$set": {"telegram_channel_id": request.channel_id}}
+    )
+    
+    return {
+        "success": True,
+        "channel_id": request.channel_id,
+        "message": "Channel ID updated successfully"
+    }
+
+
+# ========== API KEYS ROUTES ==========
+
+@api_router.put("/settings/api-keys")
+async def update_api_keys(keys: ApiKeysUpdate, current_user: User = Depends(get_current_user)):
+    """Update Cloudinary and imgbb API keys"""
+    update_data = {k: v for k, v in keys.model_dump().items() if v is not None}
+    
+    if update_data:
+        await db.users.update_one(
+            {"id": current_user.id},
+            {"$set": update_data}
+        )
+    
+    return {"success": True}
+
+@api_router.post("/settings/bot-token")
+async def update_bot_token(data: BotTokenUpdate, current_user: User = Depends(get_current_user)):
+    """Save Telegram bot token and add bot to channel"""
+    try:
+        # Verify bot token is valid
+        import requests
+        bot_response = requests.get(f"https://api.telegram.org/bot{data.bot_token}/getMe")
+        bot_data = bot_response.json()
+        
+        if not bot_data.get('ok'):
+            raise HTTPException(status_code=400, detail="Invalid bot token")
+        
+        bot_username = bot_data['result']['username']
+        
+        # If user has telegram session, add bot as admin to channel
+        if current_user.telegram_session and current_user.telegram_channel_id:
+            try:
+                client = TelegramClient(
+                    StringSession(current_user.telegram_session),
+                    int(os.environ.get('TELEGRAM_API_ID', '0')),
+                    os.environ.get('TELEGRAM_API_HASH', '')
+                )
+                await client.connect()
+                
+                # Add bot to channel as admin
+                from telethon.tl.functions.channels import InviteToChannelRequest, EditAdminRequest
+                from telethon.tl.types import ChatAdminRights
+                
+                # Get bot user
+                bot_user = await client.get_entity(bot_username)
+                
+                # Invite bot to channel
+                try:
+                    await client(InviteToChannelRequest(
+                        current_user.telegram_channel_id,
+                        [bot_user]
+                    ))
+                except:
+                    pass  # Bot might already be in channel
+                
+                # Make bot admin
+                rights = ChatAdminRights(
+                    post_messages=True,
+                    edit_messages=True,
+                    delete_messages=True,
+                )
+                await client(EditAdminRequest(
+                    current_user.telegram_channel_id,
+                    bot_user,
+                    rights,
+                    "TeleStore Bot"
+                ))
+                
+                await client.disconnect()
+            except Exception as e:
+                logger.error(f"Failed to add bot to channel: {str(e)}")
+                # Continue anyway, user can add manually
+        
+        # Save bot token
+        await db.users.update_one(
+            {"id": current_user.id},
+            {"$set": {
+                "telegram_bot_token": data.bot_token,
+                "telegram_bot_username": bot_username
+            }}
+        )
+        
+        return {
+            "success": True,
+            "bot_username": bot_username,
+            "message": "Bot token saved successfully"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Bot token update error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@api_router.get("/worker/credentials")
+async def get_worker_credentials(current_user: User = Depends(get_current_user)):
+    """Get worker credentials - called by worker to fetch bot token and channel ID"""
+    if not current_user.telegram_bot_token or not current_user.telegram_channel_id:
+        raise HTTPException(
+            status_code=400,
+            detail="Telegram not fully configured. Please connect Telegram and add bot token in settings."
+        )
+    
+    return {
+        "bot_token": current_user.telegram_bot_token,
+        "channel_id": str(current_user.telegram_channel_id),
+        "telegram_session": current_user.telegram_session,
+        "telegram_api_id": os.environ.get('TELEGRAM_API_ID'),
+        "telegram_api_hash": os.environ.get('TELEGRAM_API_HASH'),
+        "user_id": current_user.id,
+        "backend_url": os.environ.get('BACKEND_URL', 'https://your-backend.com')
+    }
+
+
+# ========== FILE ROUTES ==========
+
+@api_router.post("/files", response_model=FileMetadata)
+async def create_file(file: FileCreate, current_user: User = Depends(get_current_user)):
+    """Create file metadata after upload"""
+    file_obj = FileMetadata(user_id=current_user.id, **file.model_dump())
+    file_dict = file_obj.model_dump()
+    file_dict['created_at'] = file_dict['created_at'].isoformat()
+    
+    await db.files.insert_one(file_dict)
+    return file_obj
+
+@api_router.get("/files", response_model=List[FileMetadata])
+async def list_files(folder_id: Optional[str] = None, current_user: User = Depends(get_current_user)):
+    """List files in folder or root"""
+    query = {"user_id": current_user.id, "is_trashed": False}
+    if folder_id:
+        query["folder_id"] = folder_id
+    else:
+        query["folder_id"] = None
+    
+    files = await db.files.find(query, {"_id": 0}).to_list(1000)
+    for f in files:
+        if isinstance(f['created_at'], str):
+            f['created_at'] = datetime.fromisoformat(f['created_at'])
+    return files
+
+@api_router.get("/files/{file_id}", response_model=FileMetadata)
+async def get_file(file_id: str, current_user: User = Depends(get_current_user)):
+    """Get file details"""
+    file = await db.files.find_one({"id": file_id, "user_id": current_user.id}, {"_id": 0})
+    if not file:
+        raise HTTPException(status_code=404, detail="File not found")
+    if isinstance(file['created_at'], str):
+        file['created_at'] = datetime.fromisoformat(file['created_at'])
+    return FileMetadata(**file)
+
+@api_router.put("/files/{file_id}")
+async def update_file(file_id: str, update: FileUpdate, current_user: User = Depends(get_current_user)):
+    """Update file (rename, move)"""
+    update_data = {k: v for k, v in update.model_dump().items() if v is not None}
+    
+    if update_data:
+        result = await db.files.update_one(
+            {"id": file_id, "user_id": current_user.id},
+            {"$set": update_data}
+        )
+        if result.matched_count == 0:
+            raise HTTPException(status_code=404, detail="File not found")
+    
+    return {"success": True}
+
+@api_router.delete("/files/{file_id}")
+async def delete_file(file_id: str, permanent: bool = False, current_user: User = Depends(get_current_user)):
+    """Delete file (move to trash or permanent)"""
+    if permanent:
+        result = await db.files.delete_one({"id": file_id, "user_id": current_user.id})
+        if result.deleted_count == 0:
+            raise HTTPException(status_code=404, detail="File not found")
+    else:
+        result = await db.files.update_one(
+            {"id": file_id, "user_id": current_user.id},
+            {"$set": {"is_trashed": True}}
+        )
+        if result.matched_count == 0:
+            raise HTTPException(status_code=404, detail="File not found")
+    
+    return {"success": True}
+
+@api_router.post("/files/{file_id}/restore")
+async def restore_file(file_id: str, current_user: User = Depends(get_current_user)):
+    """Restore file from trash"""
+    result = await db.files.update_one(
+        {"id": file_id, "user_id": current_user.id},
+        {"$set": {"is_trashed": False}}
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="File not found")
+    return {"success": True}
+
+@api_router.get("/files/trash/list", response_model=List[FileMetadata])
+async def list_trash(current_user: User = Depends(get_current_user)):
+    """List trashed files"""
+    files = await db.files.find({"user_id": current_user.id, "is_trashed": True}, {"_id": 0}).to_list(1000)
+    for f in files:
+        if isinstance(f['created_at'], str):
+            f['created_at'] = datetime.fromisoformat(f['created_at'])
+    return files
+
+@api_router.post("/files/{file_id}/share")
+async def share_file(file_id: str, current_user: User = Depends(get_current_user)):
+    """Generate public share link"""
+    share_token = str(uuid.uuid4())
+    result = await db.files.update_one(
+        {"id": file_id, "user_id": current_user.id},
+        {"$set": {"is_public": True, "share_token": share_token}}
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="File not found")
+    return {"share_token": share_token, "share_url": f"/share/{share_token}"}
+
+@api_router.delete("/files/{file_id}/share")
+async def unshare_file(file_id: str, current_user: User = Depends(get_current_user)):
+    """Revoke public share link"""
+    result = await db.files.update_one(
+        {"id": file_id, "user_id": current_user.id},
+        {"$set": {"is_public": False, "share_token": None}}
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="File not found")
+    return {"success": True}
+
+@api_router.get("/share/{share_token}", response_model=FileMetadata)
+async def get_shared_file(share_token: str):
+    """Get shared file by token"""
+    file = await db.files.find_one({"share_token": share_token, "is_public": True}, {"_id": 0})
+    if not file:
+        raise HTTPException(status_code=404, detail="File not found")
+    if isinstance(file['created_at'], str):
+        file['created_at'] = datetime.fromisoformat(file['created_at'])
+    return FileMetadata(**file)
+
+
+# ========== FOLDER ROUTES ==========
+
+@api_router.post("/folders", response_model=Folder)
+async def create_folder(folder: FolderCreate, current_user: User = Depends(get_current_user)):
+    """Create new folder"""
+    folder_obj = Folder(user_id=current_user.id, **folder.model_dump())
+    folder_dict = folder_obj.model_dump()
+    folder_dict['created_at'] = folder_dict['created_at'].isoformat()
+    
+    await db.folders.insert_one(folder_dict)
+    return folder_obj
+
+@api_router.get("/folders", response_model=List[Folder])
+async def list_folders(parent_id: Optional[str] = None, current_user: User = Depends(get_current_user)):
+    """List folders"""
+    query = {"user_id": current_user.id}
+    if parent_id:
+        query["parent_id"] = parent_id
+    else:
+        query["parent_id"] = None
+    
+    folders = await db.folders.find(query, {"_id": 0}).to_list(1000)
+    for f in folders:
+        if isinstance(f['created_at'], str):
+            f['created_at'] = datetime.fromisoformat(f['created_at'])
+    return folders
+
+@api_router.put("/folders/{folder_id}")
+async def update_folder(folder_id: str, update: FolderCreate, current_user: User = Depends(get_current_user)):
+    """Update folder (rename)"""
+    result = await db.folders.update_one(
+        {"id": folder_id, "user_id": current_user.id},
+        {"$set": {"name": update.name}}
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Folder not found")
+    return {"success": True}
+
+@api_router.delete("/folders/{folder_id}")
+async def delete_folder(folder_id: str, current_user: User = Depends(get_current_user)):
+    """Delete folder and its contents"""
+    # Delete folder
+    result = await db.folders.delete_one({"id": folder_id, "user_id": current_user.id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Folder not found")
+    
+    # Move files to trash
+    await db.files.update_many(
+        {"user_id": current_user.id, "folder_id": folder_id},
+        {"$set": {"is_trashed": True, "folder_id": None}}
+    )
+    
+    return {"success": True}
+
+
+# ========== WORKER WEBHOOK ==========
+
+@api_router.post("/webhook/upload")
+async def worker_upload_webhook(data: dict):
+    """Receive upload confirmation from worker"""
+    # This endpoint will be called by the worker after successful upload
+    logger.info(f"Upload webhook received: {data}")
+    return {"success": True}
+
+
+# Include router
+app.include_router(api_router)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_credentials=True,
+    allow_origins=os.environ.get('CORS_ORIGINS', '*').split(','),
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+@app.on_event("shutdown")
+async def shutdown_db_client():
+    client.close()
+    # Cleanup telegram clients
+    for session_data in telegram_clients.values():
+        try:
+            await session_data['client'].disconnect()
+        except:
+            pass
