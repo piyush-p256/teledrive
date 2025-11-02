@@ -66,6 +66,7 @@ class User(BaseModel):
     cloudinary_api_key: Optional[str] = None
     cloudinary_api_secret: Optional[str] = None
     imgbb_api_key: Optional[str] = None
+    worker_url: Optional[str] = None
 
 class UserSignup(BaseModel):
     email: EmailStr
