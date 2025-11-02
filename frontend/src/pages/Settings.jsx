@@ -40,6 +40,7 @@ export default function Settings({ user, onLogout }) {
   const [cloudinaryKey, setCloudinaryKey] = useState('');
   const [cloudinarySecret, setCloudinarySecret] = useState('');
   const [imgbbKey, setImgbbKey] = useState('');
+  const [workerUrl, setWorkerUrl] = useState('');
 
   // Bot Token
   const [botToken, setBotToken] = useState('');
