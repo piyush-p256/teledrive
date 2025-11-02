@@ -573,6 +573,46 @@ export default function Settings({ user, onLogout }) {
 
           {/* Worker Setup */}
           <TabsContent value="worker" className="space-y-6">
+            {/* Worker URL Configuration */}
+            <Card className="border-2 border-indigo-200">
+              <CardHeader>
+                <CardTitle className="flex items-center text-indigo-800">
+                  <Key className="w-5 h-5 mr-2" />
+                  Worker URL Configuration
+                </CardTitle>
+                <CardDescription>
+                  Enter your deployed worker URL to enable file uploads
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label>Worker URL</Label>
+                  <Input
+                    data-testid="worker-url-input"
+                    value={workerUrl}
+                    onChange={(e) => setWorkerUrl(e.target.value)}
+                    placeholder="https://your-worker.workers.dev or https://your-worker.vercel.app/api/upload"
+                  />
+                  {user?.worker_url && (
+                    <p className="text-sm text-green-600 flex items-center">
+                      <CheckCircle className="w-4 h-4 mr-1" />
+                      Current: {user.worker_url}
+                    </p>
+                  )}
+                </div>
+                <Alert>
+                  <AlertDescription className="text-sm">
+                    <strong>Examples:</strong>
+                    <ul className="list-disc ml-5 mt-2 space-y-1">
+                      <li><strong>Cloudflare:</strong> https://your-worker.workers.dev</li>
+                      <li><strong>Vercel:</strong> https://your-project.vercel.app/api/upload</li>
+                      <li><strong>Render:</strong> https://your-service.onrender.com/upload</li>
+                    </ul>
+                  </AlertDescription>
+                </Alert>
+              </CardContent>
+            </Card>
+
             {/* Automatic Credential Management Info */}
             <Card className="border-2 border-green-200 bg-green-50">
               <CardHeader>
