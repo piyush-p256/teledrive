@@ -507,6 +507,10 @@ export default function Dashboard({ user, onLogout }) {
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent>
+                              <DropdownMenuItem onClick={() => handleDownload(file.id, file.name)}>
+                                <Download className="w-4 h-4 mr-2" />
+                                Download
+                              </DropdownMenuItem>
                               <DropdownMenuItem onClick={() => handleShare(file.id)}>
                                 <Share2 className="w-4 h-4 mr-2" />
                                 Share
