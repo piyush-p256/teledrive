@@ -103,10 +103,11 @@
 #====================================================================================================
 
 user_problem_statement: |
-  Implement automatic credential management for TeleDrive workers. When users log into Telegram 
-  and create a bot, store all necessary credentials (bot token, channel ID, session string, API ID/Hash) 
-  in the database. Workers should fetch credentials from backend using auth token and cache them locally 
-  (1 hour cache duration). Only request credentials from backend when cache is empty or expired.
+  Fix file upload issues in TeleDrive:
+  1. Files are uploading to Telegram but not showing on the site
+  2. Thumbnails are not getting uploaded to ImgBB despite API key being configured
+  3. Frontend is using mocked upload instead of calling actual worker
+  4. Worker URL needs to be stored and used for uploads
 
 backend:
   - task: "Update User model to store all Telegram credentials"
