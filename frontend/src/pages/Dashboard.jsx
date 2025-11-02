@@ -93,31 +93,53 @@ export default function Dashboard({ user, onLogout }) {
   const uploadFile = async (file) => {
     setUploading(true);
     try {
+      // Check if worker URL is configured
+      if (!user?.worker_url) {
+        toast.error('Please configure Worker URL in Settings');
+        return;
+      }
+
       // Generate thumbnail
       let thumbnailUrl = null;
       let thumbnailProvider = null;
 
       if (file.type.startsWith('image/')) {
         thumbnailUrl = await generateThumbnail(file);
-        if (user.cloudinary_api_key) {
-          thumbnailUrl = await uploadToCloudinary(thumbnailUrl);
-          thumbnailProvider = 'cloudinary';
-        } else if (user.imgbb_api_key) {
+        if (user.imgbb_api_key) {
           thumbnailUrl = await uploadToImgbb(thumbnailUrl);
           thumbnailProvider = 'imgbb';
+        } else if (user.cloudinary_api_key) {
+          thumbnailUrl = await uploadToCloudinary(thumbnailUrl);
+          thumbnailProvider = 'cloudinary';
         }
       }
 
-      // Upload to Telegram via worker (mocked for now - user needs to set up worker)
-      // For demo, we'll create a mock message ID
-      const mockMessageId = Math.floor(Math.random() * 1000000);
+      // Upload to Telegram via worker
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('authToken', localStorage.getItem('token'));
+
+      const workerResponse = await fetch(user.worker_url, {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!workerResponse.ok) {
+        throw new Error('Worker upload failed');
+      }
+
+      const workerData = await workerResponse.json();
+      
+      if (!workerData.success || !workerData.message_id) {
+        throw new Error(workerData.error || 'Failed to get message ID from worker');
+      }
 
       // Create file metadata
       await axios.post(`${API}/files`, {
         name: file.name,
         size: file.size,
         mime_type: file.type,
-        telegram_msg_id: mockMessageId,
+        telegram_msg_id: workerData.message_id,
         thumbnail_url: thumbnailUrl,
         thumbnail_provider: thumbnailProvider,
         folder_id: currentFolder,
@@ -126,7 +148,8 @@ export default function Dashboard({ user, onLogout }) {
       toast.success(`${file.name} uploaded successfully!`);
       loadData();
     } catch (error) {
-      toast.error(`Failed to upload ${file.name}`);
+      console.error('Upload error:', error);
+      toast.error(`Failed to upload ${file.name}: ${error.message}`);
     } finally {
       setUploading(false);
     }
