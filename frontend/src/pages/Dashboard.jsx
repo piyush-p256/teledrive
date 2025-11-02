@@ -140,6 +140,7 @@ export default function Dashboard({ user, onLogout }) {
         size: file.size,
         mime_type: file.type,
         telegram_msg_id: workerData.messageId,
+        telegram_file_id: workerData.fileId,
         thumbnail_url: thumbnailUrl,
         thumbnail_provider: thumbnailProvider,
         folder_id: currentFolder,
