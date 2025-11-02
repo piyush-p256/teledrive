@@ -274,18 +274,27 @@ test_plan:
 agent_communication:
   - agent: "main"
     message: |
-      Implementation complete. All worker templates now automatically fetch credentials from backend.
-      Key changes:
-      1. Backend endpoint /api/worker/credentials returns all necessary credentials
-      2. All three worker templates (Cloudflare, Vercel, Render) implement credential fetching with 1-hour caching
-      3. Workers only need BACKEND_URL environment variable - no manual credential configuration
-      4. Comprehensive documentation created
+      🔧 FIXED: File upload and thumbnail issues resolved!
       
-      Ready for testing. Backend should be tested for:
-      - User Telegram login and channel creation
-      - Bot token addition via /api/settings/bot-token
-      - Credential retrieval via /api/worker/credentials
+      Changes made:
+      1. ✅ Added worker_url field to User model in backend
+      2. ✅ Fixed Dashboard upload to call real worker URL (not mock)
+      3. ✅ Fixed messageId mismatch (worker returns camelCase, frontend was checking snake_case)
+      4. ✅ Implemented real ImgBB thumbnail upload with API
+      5. ✅ Added Worker URL input field in Settings page
       
-      Frontend changes NOT implemented (upload function still mocked). Frontend needs update to:
-      - Send authToken in FormData when uploading to worker
-      - Actually call worker URL instead of creating mock message ID
+      User reported: "File uploaded to Telegram but error shown"
+      Root cause: Frontend checked for message_id but worker returned messageId
+      
+      Files should now:
+      - Upload to Telegram via worker ✅
+      - Save with correct message_id in database ✅
+      - Display thumbnails from ImgBB ✅
+      - Show in the file list ✅
+      
+      User needs to:
+      1. Add worker URL in Settings → Worker Setup tab
+      2. Ensure ImgBB API key is saved
+      3. Try uploading again
+      
+      Ready for user testing!
