@@ -110,6 +110,18 @@ user_problem_statement: |
   4. Worker URL needs to be stored and used for uploads
 
 backend:
+  - task: "Add worker_url field to User model"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Added worker_url field to User model (line 69) and ApiKeysUpdate model (line 128) to store Cloudflare worker URL"
+
   - task: "Update User model to store all Telegram credentials"
     implemented: true
     working: true
