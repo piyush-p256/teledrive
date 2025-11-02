@@ -196,8 +196,32 @@ export default function Dashboard({ user, onLogout }) {
   };
 
   const uploadToImgbb = async (dataUrl) => {
-    // Mock implementation - user needs to configure
-    return dataUrl;
+    try {
+      // Convert base64 data URL to blob
+      const base64Data = dataUrl.split(',')[1];
+      
+      // Create form data for ImgBB
+      const formData = new FormData();
+      formData.append('image', base64Data);
+      
+      // Upload to ImgBB
+      const response = await fetch(`https://api.imgbb.com/1/upload?key=${user.imgbb_api_key}`, {
+        method: 'POST',
+        body: formData,
+      });
+      
+      const data = await response.json();
+      
+      if (!data.success) {
+        throw new Error('ImgBB upload failed');
+      }
+      
+      return data.data.url;
+    } catch (error) {
+      console.error('ImgBB upload error:', error);
+      // Return original dataUrl as fallback
+      return dataUrl;
+    }
   };
 
   const handleCreateFolder = async () => {
