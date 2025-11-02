@@ -284,6 +284,27 @@ export default function Dashboard({ user, onLogout }) {
     }
   };
 
+  const handleDownload = async (fileId, fileName) => {
+    try {
+      const response = await axios.get(`${API}/files/${fileId}/download-url`);
+      const downloadUrl = response.data.download_url;
+      
+      // Create a temporary link and trigger download
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = fileName;
+      link.target = '_blank';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      toast.success('Download started!');
+    } catch (error) {
+      console.error('Download error:', error);
+      toast.error(error.response?.data?.detail || 'Failed to download file');
+    }
+  };
+
   const getFileIcon = (mimeType) => {
     if (mimeType.startsWith('image/')) return <ImageIcon className="w-4 h-4" />;
     if (mimeType.startsWith('video/')) return <Video className="w-4 h-4" />;
