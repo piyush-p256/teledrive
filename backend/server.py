@@ -698,6 +698,90 @@ async def get_shared_file(share_token: str):
         file['created_at'] = datetime.fromisoformat(file['created_at'])
     return FileMetadata(**file)
 
+@api_router.get("/files/{file_id}/download-url")
+async def get_file_download_url(file_id: str, current_user: User = Depends(get_current_user)):
+    """Get Telegram download URL for file"""
+    file = await db.files.find_one({"id": file_id, "user_id": current_user.id}, {"_id": 0})
+    if not file:
+        raise HTTPException(status_code=404, detail="File not found")
+    
+    if not current_user.telegram_bot_token:
+        raise HTTPException(status_code=400, detail="Bot token not configured")
+    
+    try:
+        import requests
+        # Get file info from Telegram
+        response = requests.get(
+            f"https://api.telegram.org/bot{current_user.telegram_bot_token}/getFile",
+            params={"file_id": file.get('telegram_file_id', '')} if file.get('telegram_file_id') else {}
+        )
+        
+        # If no file_id stored, try to get message
+        if not file.get('telegram_file_id'):
+            # Get the message to extract file_id
+            msg_response = requests.get(
+                f"https://api.telegram.org/bot{current_user.telegram_bot_token}/getChat",
+                params={"chat_id": current_user.telegram_channel_id}
+            )
+            
+            # For now, return a direct link construction
+            # Note: This requires the file_id which should be stored during upload
+            raise HTTPException(
+                status_code=400, 
+                detail="File ID not found. Please re-upload the file."
+            )
+        
+        data = response.json()
+        if not data.get('ok'):
+            raise HTTPException(status_code=500, detail="Failed to get file from Telegram")
+        
+        file_path = data['result']['file_path']
+        download_url = f"https://api.telegram.org/file/bot{current_user.telegram_bot_token}/{file_path}"
+        
+        return {"download_url": download_url}
+    except Exception as e:
+        logger.error(f"Download URL error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@api_router.get("/share/{share_token}/download-url")
+async def get_shared_file_download_url(share_token: str):
+    """Get Telegram download URL for shared file"""
+    file = await db.files.find_one({"share_token": share_token, "is_public": True}, {"_id": 0})
+    if not file:
+        raise HTTPException(status_code=404, detail="File not found")
+    
+    # Get user's bot token
+    user = await db.users.find_one({"id": file['user_id']}, {"_id": 0})
+    if not user or not user.get('telegram_bot_token'):
+        raise HTTPException(status_code=400, detail="Bot token not configured")
+    
+    try:
+        import requests
+        # Get file info from Telegram using telegram_file_id if available
+        if file.get('telegram_file_id'):
+            response = requests.get(
+                f"https://api.telegram.org/bot{user['telegram_bot_token']}/getFile",
+                params={"file_id": file['telegram_file_id']}
+            )
+            
+            data = response.json()
+            if data.get('ok'):
+                file_path = data['result']['file_path']
+                download_url = f"https://api.telegram.org/file/bot{user['telegram_bot_token']}/{file_path}"
+                return {"download_url": download_url}
+        
+        # Fallback: Try to forward the message and get file_id
+        # This is a workaround if file_id wasn't stored during upload
+        raise HTTPException(
+            status_code=400, 
+            detail="Unable to generate download link. File may need to be re-uploaded."
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Shared download URL error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 # ========== FOLDER ROUTES ==========
 
