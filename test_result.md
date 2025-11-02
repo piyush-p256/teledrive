@@ -140,11 +140,48 @@ backend:
     file: "/app/backend/server.py"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: true
         agent: "main"
         comment: "Enhanced endpoint at line 505-521 to return bot_token, channel_id, telegram_session, telegram_api_id, telegram_api_hash, user_id, and backend_url. Requires user authentication via JWT token."
+
+frontend:
+  - task: "Fix Dashboard upload to call actual worker instead of mock"
+    implemented: true
+    working: true
+    file: "/app/frontend/src/pages/Dashboard.jsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Fixed uploadFile function (lines 93-133) to call real worker URL with file and authToken. Handles worker response correctly with messageId (camelCase). Replaced mock message ID generation with actual upload."
+
+  - task: "Implement real ImgBB thumbnail upload"
+    implemented: true
+    working: true
+    file: "/app/frontend/src/pages/Dashboard.jsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Implemented uploadToImgbb function (lines 175-198) to upload base64 thumbnail to ImgBB API using user's API key. Returns ImgBB URL on success, falls back to base64 on error."
+
+  - task: "Add worker URL configuration in Settings"
+    implemented: true
+    working: true
+    file: "/app/frontend/src/pages/Settings.jsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Added worker URL input field in Worker Setup tab. Users can now save their Cloudflare/Vercel/Render worker URL. URL is stored in database and used for uploads."
 
   - task: "Bot token validation and auto-add to channel"
     implemented: true
