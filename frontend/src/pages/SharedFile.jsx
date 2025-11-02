@@ -28,8 +28,19 @@ export default function SharedFile() {
     }
   };
 
-  const handleDownload = () => {
-    toast.info('Download feature requires Telegram API integration');
+  const handleDownload = async () => {
+    try {
+      // Get download URL from backend
+      const response = await axios.get(`${API}/share/${token}/download-url`);
+      const downloadUrl = response.data.download_url;
+      
+      // Open download URL in new tab
+      window.open(downloadUrl, '_blank');
+      toast.success('Download started!');
+    } catch (error) {
+      console.error('Download error:', error);
+      toast.error(error.response?.data?.detail || 'Failed to get download link');
+    }
   };
 
   if (loading) {
