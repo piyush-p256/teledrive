@@ -210,8 +210,11 @@ export default function Settings({ user, onLogout }) {
         cloudinary_api_key: cloudinaryKey || null,
         cloudinary_api_secret: cloudinarySecret || null,
         imgbb_api_key: imgbbKey || null,
+        worker_url: workerUrl || null,
       });
       toast.success('API keys saved successfully!');
+      // Reload to get updated user data
+      window.location.reload();
     } catch (error) {
       toast.error('Failed to save API keys');
     }
