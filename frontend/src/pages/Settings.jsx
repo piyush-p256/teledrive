@@ -56,6 +56,7 @@ export default function Settings({ user, onLogout }) {
       setCloudinaryKey(user.cloudinary_api_key || '');
       setCloudinarySecret(user.cloudinary_api_secret || '');
       setImgbbKey(user.imgbb_api_key || '');
+      setWorkerUrl(user.worker_url || '');
       setBotUsername(user.telegram_bot_username || '');
       setManualChannelId(user.telegram_channel_id ? String(user.telegram_channel_id) : '');
     }
