@@ -130,7 +130,7 @@ export default function Dashboard({ user, onLogout }) {
 
       const workerData = await workerResponse.json();
       
-      if (!workerData.success || !workerData.message_id) {
+      if (!workerData.success || !workerData.messageId) {
         throw new Error(workerData.error || 'Failed to get message ID from worker');
       }
 
@@ -139,7 +139,7 @@ export default function Dashboard({ user, onLogout }) {
         name: file.name,
         size: file.size,
         mime_type: file.type,
-        telegram_msg_id: workerData.message_id,
+        telegram_msg_id: workerData.messageId,
         thumbnail_url: thumbnailUrl,
         thumbnail_provider: thumbnailProvider,
         folder_id: currentFolder,
