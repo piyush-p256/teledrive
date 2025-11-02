@@ -102,6 +102,7 @@ class FileCreate(BaseModel):
     size: int
     mime_type: str
     telegram_msg_id: int
+    telegram_file_id: Optional[str] = None
     thumbnail_url: Optional[str] = None
     thumbnail_provider: Optional[str] = None
     folder_id: Optional[str] = None
