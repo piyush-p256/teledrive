@@ -103,11 +103,14 @@
 #====================================================================================================
 
 user_problem_statement: |
-  Fix file upload issues in TeleDrive:
-  1. Files are uploading to Telegram but not showing on the site
-  2. Thumbnails are not getting uploaded to ImgBB despite API key being configured
-  3. Frontend is using mocked upload instead of calling actual worker
-  4. Worker URL needs to be stored and used for uploads
+  Previous: Fixed file upload issues in TeleDrive
+  
+  Current: Add face recognition feature:
+  1. Process photos on user's device for face recognition using face-api.js
+  2. Store face data in database with descriptors and bounding boxes
+  3. Create frontend People page showing photos categorized by detected people
+  4. Allow naming people and clicking to view all photos with that person
+  5. Processing must happen on the uploading device, not on worker
 
 backend:
   - task: "Add worker_url field to User model"
