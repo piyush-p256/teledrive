@@ -937,19 +937,30 @@ async def find_or_create_person(user_id: str, descriptor: List[float], sample_ph
     # Get all existing people for this user
     people = await db.people.find({"user_id": user_id}).to_list(1000)
     
-    # Get all faces for these people to compare
-    threshold = 0.6  # Euclidean distance threshold for face matching
+    # Euclidean distance threshold for face matching (lower = more strict)
+    threshold = 0.6
+    
+    new_descriptor = np.array(descriptor)
     
     for person in people:
-        # Get a sample face from this person
-        sample_face = await db.faces.find_one({"person_id": person['id'], "user_id": user_id})
-        if sample_face:
-            # Calculate Euclidean distance between descriptors
-            desc1 = np.array(descriptor)
-            desc2 = np.array(sample_face['descriptor'])
-            distance = np.linalg.norm(desc1 - desc2)
+        # Get ALL faces from this person to compare against
+        existing_faces = await db.faces.find({"person_id": person['id'], "user_id": user_id}).to_list(None)
+        
+        if existing_faces:
+            # Compare new face against ALL existing faces of this person
+            min_distance = float('inf')
             
-            if distance < threshold:
+            for existing_face in existing_faces:
+                # Calculate Euclidean distance between descriptors
+                existing_descriptor = np.array(existing_face['descriptor'])
+                distance = np.linalg.norm(new_descriptor - existing_descriptor)
+                
+                # Track the minimum distance to any face of this person
+                if distance < min_distance:
+                    min_distance = distance
+            
+            # If the closest match is below threshold, this is the same person
+            if min_distance < threshold:
                 # Match found! Update person's photo count
                 await db.people.update_one(
                     {"id": person['id']},
@@ -958,6 +969,7 @@ async def find_or_create_person(user_id: str, descriptor: List[float], sample_ph
                         "$set": {"updated_at": datetime.now(timezone.utc).isoformat()}
                     }
                 )
+                logger.info(f"Matched face to existing person {person['id']} with distance {min_distance:.4f}")
                 return person['id']
     
     # No match found, create new person
@@ -972,6 +984,7 @@ async def find_or_create_person(user_id: str, descriptor: List[float], sample_ph
     person_dict['updated_at'] = person_dict['updated_at'].isoformat()
     await db.people.insert_one(person_dict)
     
+    logger.info(f"Created new person {person['id']} - no match found")
     return person['id']
 
 
