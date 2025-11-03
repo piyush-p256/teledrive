@@ -105,28 +105,40 @@
 user_problem_statement: |
   Previous: Fixed file upload issues in TeleDrive and added face recognition feature
   
-  Current Issue Fixed: Same people appearing as multiple entries in People page
+  Current Issue: Face recognition accuracy needs improvement
   
-  Problems Identified:
-  1. Each image upload created a new person entry even if same person in multiple photos
-  2. Face matching was comparing against only ONE sample face per person
-  3. Photo count was being incremented per face detection instead of per unique photo
-  4. Multiple people in same image needed to show that image in each person's gallery
+  Problems Reported:
+  1. 4 faces detected but only 3 profiles created (2 different people grouped as 1)
+  2. One person's solo photo being added to another person's section (false positive)
+  3. Matching threshold too lenient causing incorrect groupings
   
-  Solutions Implemented:
-  1. Enhanced find_or_create_person() to compare against ALL existing faces of each person
-  2. Uses minimum distance to ANY existing face for matching
-  3. Fixed photo_count to count unique file_ids per person (not face detections)
-  4. Increased matching threshold from 0.6 to 0.65 for better tolerance
-  5. Added comprehensive debug logging to track matching distances
-  6. Multiple faces in same image now properly handled - each person gets the photo
+  Accuracy Improvements Implemented:
   
-  Expected Behavior:
-  ✅ One person entry per unique individual
-  ✅ All photos of same person grouped together correctly
-  ✅ If 2+ people in same photo, that photo appears in both people's galleries
-  ✅ Photo count shows correct number of unique photos (not face detections)
-  ✅ Handles different angles, lighting, expressions
+  FRONTEND (Detection Quality):
+  1. ✅ Switched from TinyFaceDetector to SsdMobilenetv1
+     - More accurate face detection
+     - Better quality face descriptors
+  2. ✅ Added confidence filtering (min 0.6)
+     - Only processes high-quality detections
+     - Reduces noise and false detections
+  
+  BACKEND (Matching Algorithm):
+  1. ✅ Lowered threshold from 0.65 to 0.5
+     - Stricter matching reduces false positives
+     - Prevents different people from being grouped
+  2. ✅ Multi-match validation strategy
+     - For people with 2+ faces: averages top 2 matches
+     - More robust validation
+  3. ✅ Best match strategy
+     - Compares against ALL people
+     - Uses best overall match (not first match)
+  
+  Expected Results:
+  ✅ Each unique person gets their own profile
+  ✅ No false matches between different people
+  ✅ Same person correctly grouped across photos
+  ✅ Higher quality face detection
+  ✅ More accurate face descriptors
 
 backend:
   - task: "Add FaceData and Person models for face recognition"
