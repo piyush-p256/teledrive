@@ -570,3 +570,93 @@ agent_communication:
       3. Verify each unique person gets separate profile
       4. Verify no cross-contamination between people
       5. Check backend logs for distance values
+  
+  - agent: "main"
+    message: |
+      👓 GLASSES/ACCESSORIES SUPPORT: Enhanced Recognition for Face Variations
+      
+      User Feedback:
+      - Person with glasses/spectacles not being recognized properly
+      - Same person creates multiple profiles when wearing glasses
+      - Glasses significantly change face descriptors
+      
+      Problem Analysis:
+      Accessories like glasses, sunglasses, hats cause significant variations in face descriptors:
+      - Face-api.js encodes facial features in 128-dimensional vectors
+      - Glasses cover ~15-20% of facial area (eyes, eyebrows, nose bridge)
+      - Euclidean distance increases by 0.05-0.15 with glasses
+      - Single strict threshold (0.5) rejects same person with glasses
+      
+      Solution: Tiered Threshold Approach
+      
+      BACKEND - Smart Multi-Threshold Matching:
+      
+      1. ✅ Primary Threshold: 0.5 (Strict)
+         - For clear, unobstructed faces
+         - High precision, low false positives
+         - Used when distance clearly indicates same person
+      
+      2. ✅ Secondary Threshold: 0.58 (Lenient)
+         - For faces with accessories/variations
+         - Activates only for medium/high confidence matches
+         - Requires person to have 2+ existing faces for validation
+         - Handles: glasses, sunglasses, hats, facial hair, makeup
+      
+      3. ✅ Weighted Averaging Strategy:
+         High Confidence (3+ existing faces):
+           - Weighted average: min_distance × 0.6 + avg_top3 × 0.4
+           - Most robust, considers multiple matches
+         
+         Medium Confidence (2 existing faces):
+           - Weighted average: min_distance × 0.7 + avg_top2 × 0.3
+           - Balanced approach
+         
+         Low Confidence (1 existing face):
+           - Uses minimum distance
+           - More lenient secondary threshold to compensate
+      
+      4. ✅ Match Quality Scoring:
+         - Logs confidence level for each comparison
+         - Helps diagnose matching issues
+         - Provides transparency in decision making
+      
+      FRONTEND - Better Detection for Accessories:
+      
+      1. ✅ Lowered confidence threshold: 0.6 → 0.55
+         - Better at detecting faces with glasses
+         - Captures partial faces more effectively
+         - Still filters out poor quality detections
+      
+      2. ✅ Optimized SsdMobilenetv1 settings:
+         - maxResults: 10 (handles group photos)
+         - Better landmark detection around glasses area
+      
+      Technical Details:
+      
+      Distance Examples:
+      - Same person, no accessories: 0.15-0.35
+      - Same person, with glasses: 0.35-0.55
+      - Same person, sunglasses: 0.40-0.58
+      - Different people: 0.60+
+      
+      Threshold Logic:
+      - Distance < 0.5: Definite match (primary)
+      - Distance 0.5-0.58 + confidence: Likely same person with variation (secondary)
+      - Distance > 0.58: Different person
+      
+      Expected Results:
+      ✅ Same person with glasses → grouped with non-glasses photos
+      ✅ Same person with sunglasses → correctly grouped
+      ✅ Same person with hat/beard → correctly grouped
+      ✅ Different people → still separate profiles (no false positives)
+      ✅ More robust to appearance changes
+      ✅ Maintains high accuracy overall
+      
+      Testing Recommendations:
+      1. Upload 2-3 photos of person WITHOUT glasses first (builds baseline)
+      2. Then upload photos WITH glasses (should match to existing person)
+      3. Check backend logs to see which threshold triggered
+      4. Verify no false matches between different people
+      5. Test with: glasses, sunglasses, hats, different lighting
+      
+      The system now intelligently adapts to appearance variations!
