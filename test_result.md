@@ -352,8 +352,10 @@ metadata:
 
 test_plan:
   current_focus:
-    - "Test /api/worker/credentials endpoint with authenticated user"
-    - "Verify bot token storage and channel admin assignment"
+    - "Test face detection during image upload"
+    - "Test People page displays detected faces correctly"
+    - "Test person naming and photo grouping"
+    - "Verify face descriptors stored in database"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
@@ -361,27 +363,29 @@ test_plan:
 agent_communication:
   - agent: "main"
     message: |
-      🔧 FIXED: File upload and thumbnail issues resolved!
+      🎉 FACE RECOGNITION FEATURE IMPLEMENTED!
       
-      Changes made:
-      1. ✅ Added worker_url field to User model in backend
-      2. ✅ Fixed Dashboard upload to call real worker URL (not mock)
-      3. ✅ Fixed messageId mismatch (worker returns camelCase, frontend was checking snake_case)
-      4. ✅ Implemented real ImgBB thumbnail upload with API
-      5. ✅ Added Worker URL input field in Settings page
+      Backend Changes:
+      1. ✅ Added FaceData model to store face descriptors (128-dim vectors), bounding boxes, confidence
+      2. ✅ Added Person model to group faces with name, photo_count, sample_photo
+      3. ✅ Implemented POST /api/faces with auto-grouping using Euclidean distance (threshold 0.6)
+      4. ✅ Created GET /api/people, PUT /api/people/{id}/name, GET /api/people/{id}/photos
+      5. ✅ Added merge and delete endpoints for people management
+      6. ✅ Uses numpy for face descriptor comparison
       
-      User reported: "File uploaded to Telegram but error shown"
-      Root cause: Frontend checked for message_id but worker returned messageId
+      Frontend Changes:
+      1. ✅ Installed face-api.js with TensorFlow.js
+      2. ✅ Downloaded face detection models (tiny_face_detector, landmarks, recognition)
+      3. ✅ Integrated face detection in Dashboard upload flow
+      4. ✅ Created new People page with split layout (people list + photo grid)
+      5. ✅ Added People navigation button in Dashboard header
+      6. ✅ Implements client-side processing - no server load
       
-      Files should now:
-      - Upload to Telegram via worker ✅
-      - Save with correct message_id in database ✅
-      - Display thumbnails from ImgBB ✅
-      - Show in the file list ✅
+      User Flow:
+      1. User uploads image → Face detection runs automatically on device
+      2. Face descriptors sent to backend → Auto-grouped by similarity
+      3. Navigate to People page → See all detected people
+      4. Click person → View all their photos
+      5. Name people → Updates display names
       
-      User needs to:
-      1. Add worker URL in Settings → Worker Setup tab
-      2. Ensure ImgBB API key is saved
-      3. Try uploading again
-      
-      Ready for user testing!
+      Ready for backend testing!
