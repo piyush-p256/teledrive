@@ -211,8 +211,12 @@ export default function Dashboard({ user, onLogout }) {
   const detectAndStoreFaces = async (imageElement, fileId) => {
     try {
       // Detect faces with landmarks and descriptors using SSD MobileNet v1 (more accurate)
+      // Adjusted settings for better detection of faces with glasses/accessories
       const detections = await faceapi
-        .detectAllFaces(imageElement, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.5 }))
+        .detectAllFaces(imageElement, new faceapi.SsdMobilenetv1Options({ 
+          minConfidence: 0.5,  // Slightly lower to catch more faces with accessories
+          maxResults: 10        // Allow detecting multiple faces
+        }))
         .withFaceLandmarks()
         .withFaceDescriptors();
 
@@ -223,11 +227,12 @@ export default function Dashboard({ user, onLogout }) {
 
       console.log(`Detected ${detections.length} face(s) with SsdMobilenetv1`);
 
-      // Filter out low confidence detections and format for backend
+      // Filter and format detections for backend
+      // More lenient confidence for faces with glasses
       const faceData = {
         file_id: fileId,
         detections: detections
-          .filter(detection => detection.detection.score >= 0.6) // Only high confidence faces
+          .filter(detection => detection.detection.score >= 0.55) // Slightly lower threshold
           .map(detection => ({
             box: {
               x: detection.detection.box.x,
@@ -245,9 +250,11 @@ export default function Dashboard({ user, onLogout }) {
         return;
       }
 
+      console.log(`Storing ${faceData.detections.length} face detection(s) (confidence >= 0.55)`);
+
       // Send to backend
       await axios.post(`${API}/faces`, faceData);
-      console.log(`Stored ${faceData.detections.length} high-confidence face(s)`);
+      console.log(`Stored ${faceData.detections.length} face(s) successfully`);
     } catch (error) {
       console.error('Face detection/storage error:', error);
       throw error;
