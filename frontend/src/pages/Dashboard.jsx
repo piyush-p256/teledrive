@@ -39,7 +39,9 @@ import {
   FileText,
   Video,
   Music,
+  Users,
 } from 'lucide-react';
+import * as faceapi from 'face-api.js';
 
 export default function Dashboard({ user, onLogout }) {
   const navigate = useNavigate();
