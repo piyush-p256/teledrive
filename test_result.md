@@ -105,15 +105,28 @@
 user_problem_statement: |
   Previous: Fixed file upload issues in TeleDrive and added face recognition feature
   
-  Current Issue: Same people appearing as multiple entries in People page
-  - When uploading images, each image creates a new person entry even if same person appears in multiple photos
-  - Problem: Face matching was comparing against only ONE sample face per person
+  Current Issue Fixed: Same people appearing as multiple entries in People page
   
-  Fix Applied:
-  - Enhanced find_or_create_person function to compare new faces against ALL existing faces of each person
-  - Uses minimum distance to ANY existing face for matching
-  - This handles different angles, lighting, and expressions much better
-  - Same person should now be grouped correctly across all their photos
+  Problems Identified:
+  1. Each image upload created a new person entry even if same person in multiple photos
+  2. Face matching was comparing against only ONE sample face per person
+  3. Photo count was being incremented per face detection instead of per unique photo
+  4. Multiple people in same image needed to show that image in each person's gallery
+  
+  Solutions Implemented:
+  1. Enhanced find_or_create_person() to compare against ALL existing faces of each person
+  2. Uses minimum distance to ANY existing face for matching
+  3. Fixed photo_count to count unique file_ids per person (not face detections)
+  4. Increased matching threshold from 0.6 to 0.65 for better tolerance
+  5. Added comprehensive debug logging to track matching distances
+  6. Multiple faces in same image now properly handled - each person gets the photo
+  
+  Expected Behavior:
+  ✅ One person entry per unique individual
+  ✅ All photos of same person grouped together correctly
+  ✅ If 2+ people in same photo, that photo appears in both people's galleries
+  ✅ Photo count shows correct number of unique photos (not face detections)
+  ✅ Handles different angles, lighting, expressions
 
 backend:
   - task: "Add FaceData and Person models for face recognition"
