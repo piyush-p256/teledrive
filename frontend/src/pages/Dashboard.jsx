@@ -246,25 +246,6 @@ export default function Dashboard({ user, onLogout }) {
       throw error;
     }
   };
-        name: file.name,
-        size: file.size,
-        mime_type: file.type,
-        telegram_msg_id: workerData.messageId,
-        telegram_file_id: workerData.fileId,
-        thumbnail_url: thumbnailUrl,
-        thumbnail_provider: thumbnailProvider,
-        folder_id: currentFolder,
-      });
-
-      toast.success(`${file.name} uploaded successfully!`);
-      loadData();
-    } catch (error) {
-      console.error('Upload error:', error);
-      toast.error(`Failed to upload ${file.name}: ${error.message}`);
-    } finally {
-      setUploading(false);
-    }
-  };
 
   const generateThumbnail = (file) => {
     return new Promise((resolve) => {
