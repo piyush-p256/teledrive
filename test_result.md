@@ -395,3 +395,29 @@ agent_communication:
       5. Name people → Updates display names
       
       Ready for backend testing!
+  
+  - agent: "main"
+    message: |
+      🔧 FIXED: Duplicate Person Entries Issue
+      
+      Problem Identified:
+      - Face matching was comparing against only ONE sample face per person
+      - Different angles/lighting of same person would create new person entries
+      
+      Solution Implemented:
+      - Enhanced find_or_create_person() to compare against ALL existing faces of each person
+      - Finds minimum distance to ANY existing face for matching
+      - Same person now correctly grouped across all their photos
+      
+      Technical Details:
+      - Retrieves all faces for each existing person from database
+      - Calculates Euclidean distance to all existing faces
+      - Matches if minimum distance < 0.6 threshold
+      - Much more robust to variations in pose, lighting, expression
+      
+      User should now see:
+      ✅ One person entry per unique individual
+      ✅ All photos of same person grouped together
+      ✅ Can click person to see their complete gallery
+      
+      Note: User will do manual testing
