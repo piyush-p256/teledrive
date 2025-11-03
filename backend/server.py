@@ -888,6 +888,200 @@ async def worker_upload_webhook(data: dict):
     return {"success": True}
 
 
+# ========== FACE RECOGNITION ROUTES ==========
+
+@api_router.post("/faces")
+async def store_face_data(face_data: FaceDataCreate, current_user: User = Depends(get_current_user)):
+    """Store face detection data for a file and auto-group into people"""
+    try:
+        # Verify the file belongs to the user
+        file = await db.files.find_one({"id": face_data.file_id, "user_id": current_user.id})
+        if not file:
+            raise HTTPException(status_code=404, detail="File not found")
+        
+        # Store each detected face
+        stored_faces = []
+        for detection in face_data.detections:
+            # Find matching person by comparing descriptors
+            person_id = await find_or_create_person(
+                current_user.id,
+                detection.descriptor,
+                file.get('thumbnail_url'),
+                face_data.file_id
+            )
+            
+            face = FaceData(
+                file_id=face_data.file_id,
+                user_id=current_user.id,
+                person_id=person_id,
+                descriptor=detection.descriptor,
+                box=detection.box,
+                confidence=detection.confidence
+            )
+            
+            face_dict = face.model_dump()
+            face_dict['created_at'] = face_dict['created_at'].isoformat()
+            await db.faces.insert_one(face_dict)
+            stored_faces.append(face.id)
+        
+        return {"success": True, "face_ids": stored_faces}
+    except Exception as e:
+        logger.error(f"Face storage error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+async def find_or_create_person(user_id: str, descriptor: List[float], sample_photo_url: Optional[str], file_id: str) -> str:
+    """Find existing person by face similarity or create new person"""
+    import numpy as np
+    
+    # Get all existing people for this user
+    people = await db.people.find({"user_id": user_id}).to_list(1000)
+    
+    # Get all faces for these people to compare
+    threshold = 0.6  # Euclidean distance threshold for face matching
+    
+    for person in people:
+        # Get a sample face from this person
+        sample_face = await db.faces.find_one({"person_id": person['id'], "user_id": user_id})
+        if sample_face:
+            # Calculate Euclidean distance between descriptors
+            desc1 = np.array(descriptor)
+            desc2 = np.array(sample_face['descriptor'])
+            distance = np.linalg.norm(desc1 - desc2)
+            
+            if distance < threshold:
+                # Match found! Update person's photo count
+                await db.people.update_one(
+                    {"id": person['id']},
+                    {
+                        "$inc": {"photo_count": 1},
+                        "$set": {"updated_at": datetime.now(timezone.utc).isoformat()}
+                    }
+                )
+                return person['id']
+    
+    # No match found, create new person
+    person = Person(
+        user_id=user_id,
+        photo_count=1,
+        sample_photo_url=sample_photo_url,
+        sample_file_id=file_id
+    )
+    person_dict = person.model_dump()
+    person_dict['created_at'] = person_dict['created_at'].isoformat()
+    person_dict['updated_at'] = person_dict['updated_at'].isoformat()
+    await db.people.insert_one(person_dict)
+    
+    return person['id']
+
+
+@api_router.get("/people", response_model=List[Person])
+async def list_people(current_user: User = Depends(get_current_user)):
+    """List all detected people"""
+    people = await db.people.find({"user_id": current_user.id}, {"_id": 0}).to_list(1000)
+    for person in people:
+        if isinstance(person.get('created_at'), str):
+            person['created_at'] = datetime.fromisoformat(person['created_at'])
+        if isinstance(person.get('updated_at'), str):
+            person['updated_at'] = datetime.fromisoformat(person['updated_at'])
+    return people
+
+
+@api_router.put("/people/{person_id}/name")
+async def update_person_name(person_id: str, update: PersonUpdate, current_user: User = Depends(get_current_user)):
+    """Update person name"""
+    result = await db.people.update_one(
+        {"id": person_id, "user_id": current_user.id},
+        {"$set": {
+            "name": update.name,
+            "updated_at": datetime.now(timezone.utc).isoformat()
+        }}
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Person not found")
+    return {"success": True}
+
+
+@api_router.get("/people/{person_id}/photos")
+async def get_person_photos(person_id: str, current_user: User = Depends(get_current_user)):
+    """Get all photos containing this person"""
+    # Verify person belongs to user
+    person = await db.people.find_one({"id": person_id, "user_id": current_user.id})
+    if not person:
+        raise HTTPException(status_code=404, detail="Person not found")
+    
+    # Get all face detections for this person
+    faces = await db.faces.find({"person_id": person_id, "user_id": current_user.id}, {"_id": 0}).to_list(1000)
+    
+    # Get unique file IDs
+    file_ids = list(set([face['file_id'] for face in faces]))
+    
+    # Get file metadata for these files
+    files = await db.files.find(
+        {"id": {"$in": file_ids}, "user_id": current_user.id, "is_trashed": False},
+        {"_id": 0}
+    ).to_list(1000)
+    
+    for f in files:
+        if isinstance(f['created_at'], str):
+            f['created_at'] = datetime.fromisoformat(f['created_at'])
+    
+    return files
+
+
+@api_router.post("/people/merge")
+async def merge_people(merge: PersonMerge, current_user: User = Depends(get_current_user)):
+    """Merge multiple people into one (for fixing duplicate detections)"""
+    # Verify all people belong to user
+    people = await db.people.find(
+        {"id": {"$in": merge.person_ids + [merge.target_person_id]}, "user_id": current_user.id}
+    ).to_list(1000)
+    
+    if len(people) != len(merge.person_ids) + 1:
+        raise HTTPException(status_code=404, detail="One or more people not found")
+    
+    # Update all faces from source people to target person
+    await db.faces.update_many(
+        {"person_id": {"$in": merge.person_ids}, "user_id": current_user.id},
+        {"$set": {"person_id": merge.target_person_id}}
+    )
+    
+    # Recalculate photo count for target person
+    face_count = await db.faces.count_documents({"person_id": merge.target_person_id, "user_id": current_user.id})
+    await db.people.update_one(
+        {"id": merge.target_person_id},
+        {"$set": {
+            "photo_count": face_count,
+            "updated_at": datetime.now(timezone.utc).isoformat()
+        }}
+    )
+    
+    # Delete source people
+    await db.people.delete_many({"id": {"$in": merge.person_ids}, "user_id": current_user.id})
+    
+    return {"success": True}
+
+
+@api_router.delete("/people/{person_id}")
+async def delete_person(person_id: str, current_user: User = Depends(get_current_user)):
+    """Delete a person and unlink their face data"""
+    # Verify person belongs to user
+    person = await db.people.find_one({"id": person_id, "user_id": current_user.id})
+    if not person:
+        raise HTTPException(status_code=404, detail="Person not found")
+    
+    # Unlink faces (set person_id to None)
+    await db.faces.update_many(
+        {"person_id": person_id, "user_id": current_user.id},
+        {"$set": {"person_id": None}}
+    )
+    
+    # Delete person
+    await db.people.delete_one({"id": person_id, "user_id": current_user.id})
+    
+    return {"success": True}
+
+
 # Include router
 app.include_router(api_router)
 
