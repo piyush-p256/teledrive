@@ -899,16 +899,23 @@ async def store_face_data(face_data: FaceDataCreate, current_user: User = Depend
         if not file:
             raise HTTPException(status_code=404, detail="File not found")
         
-        # Store each detected face
+        logger.info(f"Processing {len(face_data.detections)} face(s) for file {face_data.file_id}")
+        
+        # Store each detected face and track which people got new photos
         stored_faces = []
+        people_with_new_photos = set()
+        
         for detection in face_data.detections:
             # Find matching person by comparing descriptors
-            person_id = await find_or_create_person(
+            person_id, is_new_person = await find_or_create_person(
                 current_user.id,
                 detection.descriptor,
                 file.get('thumbnail_url'),
                 face_data.file_id
             )
+            
+            # Track people who got a face in this file
+            people_with_new_photos.add(person_id)
             
             face = FaceData(
                 file_id=face_data.file_id,
@@ -923,6 +930,24 @@ async def store_face_data(face_data: FaceDataCreate, current_user: User = Depend
             face_dict['created_at'] = face_dict['created_at'].isoformat()
             await db.faces.insert_one(face_dict)
             stored_faces.append(face.id)
+        
+        # Update photo counts only once per person per file
+        # Count unique files for each person
+        for person_id in people_with_new_photos:
+            unique_files = await db.faces.aggregate([
+                {"$match": {"person_id": person_id, "user_id": current_user.id}},
+                {"$group": {"_id": "$file_id"}},
+                {"$count": "total"}
+            ]).to_list(1)
+            
+            photo_count = unique_files[0]['total'] if unique_files else 0
+            await db.people.update_one(
+                {"id": person_id},
+                {"$set": {
+                    "photo_count": photo_count,
+                    "updated_at": datetime.now(timezone.utc).isoformat()
+                }}
+            )
         
         return {"success": True, "face_ids": stored_faces}
     except Exception as e:
