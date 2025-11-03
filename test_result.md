@@ -414,26 +414,59 @@ agent_communication:
   
   - agent: "main"
     message: |
-      🔧 FIXED: Duplicate Person Entries Issue
+      🔧 COMPREHENSIVE FIX: Duplicate Person Entries & Photo Count Issues
       
-      Problem Identified:
-      - Face matching was comparing against only ONE sample face per person
-      - Different angles/lighting of same person would create new person entries
+      Problems Identified & Fixed:
       
-      Solution Implemented:
-      - Enhanced find_or_create_person() to compare against ALL existing faces of each person
-      - Finds minimum distance to ANY existing face for matching
-      - Same person now correctly grouped across all their photos
+      1. ❌ DUPLICATE PERSON ENTRIES
+         - Root cause: Comparing against only 1 sample face per person
+         - Fix: Compare against ALL existing faces, use minimum distance
+         
+      2. ❌ INCORRECT PHOTO COUNTS
+         - Root cause: Incrementing count per face detection (not per unique photo)
+         - Fix: Aggregate unique file_ids per person after all faces stored
+         
+      3. ❌ STRICT MATCHING THRESHOLD
+         - Root cause: 0.6 threshold too strict for varying angles/lighting
+         - Fix: Increased to 0.65 for better tolerance
+         
+      4. ✅ MULTIPLE PEOPLE PER IMAGE
+         - Already working: Each person's gallery shows all photos they appear in
+         - Photos with multiple people appear in all relevant galleries
       
-      Technical Details:
-      - Retrieves all faces for each existing person from database
-      - Calculates Euclidean distance to all existing faces
-      - Matches if minimum distance < 0.6 threshold
-      - Much more robust to variations in pose, lighting, expression
+      Implementation Details:
       
-      User should now see:
-      ✅ One person entry per unique individual
-      ✅ All photos of same person grouped together
-      ✅ Can click person to see their complete gallery
+      Backend Changes (server.py):
+      1. Modified store_face_data() endpoint:
+         - Tracks people_with_new_photos set to avoid duplicate counting
+         - After storing all faces, recalculates photo_count using MongoDB aggregation
+         - Counts unique file_ids per person (not face detections)
+         
+      2. Enhanced find_or_create_person():
+         - Compares new face against ALL existing faces of each person
+         - Calculates minimum Euclidean distance
+         - Returns (person_id, is_new_person) tuple
+         - Added comprehensive debug logging
+         
+      3. Debug Logging Added:
+         - Logs number of faces being processed
+         - Logs comparison against each existing person
+         - Shows min_distance vs threshold for each comparison
+         - Logs match results or new person creation
       
-      Note: User will do manual testing
+      Expected Results:
+      ✅ Same person detected across multiple photos → 1 person entry
+      ✅ Photo count shows unique photos (not face detections)
+      ✅ Multiple people in 1 image → image appears in all their galleries
+      ✅ Better handling of different angles, lighting, expressions
+      ✅ Can monitor matching distances in backend logs for debugging
+      
+      Testing Instructions:
+      1. Clear existing people data (user already did this)
+      2. Upload multiple photos of same person at different angles
+      3. Check People page - should see only ONE entry per person
+      4. Click person - should see all their photos
+      5. Upload photo with 2+ people - should appear in both galleries
+      6. Check backend logs to see matching distances
+      
+      User will perform manual testing.
