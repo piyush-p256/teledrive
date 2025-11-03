@@ -1009,8 +1009,8 @@ async def find_or_create_person(user_id: str, descriptor: List[float], sample_ph
     person_dict['updated_at'] = person_dict['updated_at'].isoformat()
     await db.people.insert_one(person_dict)
     
-    logger.info(f"Created new person {person['id']}")
-    return person['id'], True
+    logger.info(f"Created new person {person.id}")
+    return person.id, True
 
 
 @api_router.get("/people", response_model=List[Person])
