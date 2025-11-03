@@ -210,9 +210,9 @@ export default function Dashboard({ user, onLogout }) {
 
   const detectAndStoreFaces = async (imageElement, fileId) => {
     try {
-      // Detect faces with landmarks and descriptors
+      // Detect faces with landmarks and descriptors using SSD MobileNet v1 (more accurate)
       const detections = await faceapi
-        .detectAllFaces(imageElement, new faceapi.TinyFaceDetectorOptions())
+        .detectAllFaces(imageElement, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.5 }))
         .withFaceLandmarks()
         .withFaceDescriptors();
 
@@ -221,26 +221,33 @@ export default function Dashboard({ user, onLogout }) {
         return;
       }
 
-      console.log(`Detected ${detections.length} face(s)`);
+      console.log(`Detected ${detections.length} face(s) with SsdMobilenetv1`);
 
-      // Format detections for backend
+      // Filter out low confidence detections and format for backend
       const faceData = {
         file_id: fileId,
-        detections: detections.map(detection => ({
-          box: {
-            x: detection.detection.box.x,
-            y: detection.detection.box.y,
-            width: detection.detection.box.width,
-            height: detection.detection.box.height,
-          },
-          descriptor: Array.from(detection.descriptor),
-          confidence: detection.detection.score,
-        })),
+        detections: detections
+          .filter(detection => detection.detection.score >= 0.6) // Only high confidence faces
+          .map(detection => ({
+            box: {
+              x: detection.detection.box.x,
+              y: detection.detection.box.y,
+              width: detection.detection.box.width,
+              height: detection.detection.box.height,
+            },
+            descriptor: Array.from(detection.descriptor),
+            confidence: detection.detection.score,
+          })),
       };
+
+      if (faceData.detections.length === 0) {
+        console.log('No high-confidence faces to store');
+        return;
+      }
 
       // Send to backend
       await axios.post(`${API}/faces`, faceData);
-      console.log('Face data stored successfully');
+      console.log(`Stored ${faceData.detections.length} high-confidence face(s)`);
     } catch (error) {
       console.error('Face detection/storage error:', error);
       throw error;
