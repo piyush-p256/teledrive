@@ -113,6 +113,42 @@ user_problem_statement: |
   5. Processing must happen on the uploading device, not on worker
 
 backend:
+  - task: "Add FaceData and Person models for face recognition"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Added FaceData model (lines 153-163) to store face descriptors, bounding boxes, and confidence. Added Person model (lines 165-175) to group faces by person with name, photo_count, and sample photo."
+
+  - task: "Create face recognition API endpoints"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Implemented POST /api/faces to store face detections with auto-grouping (lines 895-927), GET /api/people to list detected people (lines 972-981), PUT /api/people/{person_id}/name to update names (lines 984-994), GET /api/people/{person_id}/photos to get all photos with that person (lines 997-1018), POST /api/people/merge to merge duplicate people (lines 1021-1049), DELETE /api/people/{person_id} to delete person (lines 1052-1067)"
+
+  - task: "Implement face matching algorithm using Euclidean distance"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Created find_or_create_person function (lines 930-969) that uses numpy to calculate Euclidean distance between 128-dimensional face descriptors. Uses threshold of 0.6 for matching. Auto-groups same person across multiple photos."
+
   - task: "Add worker_url field to User model"
     implemented: true
     working: true
