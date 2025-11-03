@@ -56,7 +56,27 @@ export default function Dashboard({ user, onLogout }) {
   const [renameDialog, setRenameDialog] = useState(false);
   const [renameItem, setRenameItem] = useState(null);
   const [renameName, setRenameName] = useState('');
+  const [modelsLoaded, setModelsLoaded] = useState(false);
   const fileInputRef = useRef(null);
+
+  // Load face-api.js models on mount
+  useEffect(() => {
+    const loadModels = async () => {
+      try {
+        const MODEL_URL = '/models';
+        await Promise.all([
+          faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
+          faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
+          faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL),
+        ]);
+        setModelsLoaded(true);
+        console.log('Face detection models loaded successfully');
+      } catch (error) {
+        console.error('Failed to load face detection models:', error);
+      }
+    };
+    loadModels();
+  }, []);
 
   useEffect(() => {
     loadData();
