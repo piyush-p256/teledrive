@@ -185,6 +185,9 @@ backend:
       - working: true
         agent: "main"
         comment: "ACCURACY IMPROVEMENTS: 1) Lowered threshold from 0.65 to 0.5 for stricter matching to prevent false positives. 2) Added sophisticated multi-match validation - averages top 2 matches when person has multiple faces. 3) Uses best match strategy across all people instead of first match. 4) Prevents different people from being grouped together."
+      - working: true
+        agent: "main"
+        comment: "GLASSES/ACCESSORIES SUPPORT: Implemented tiered threshold approach with primary (0.5) and secondary (0.58) thresholds. Uses weighted averaging of top 3 matches for high confidence. Handles faces with glasses, hats, and other accessories better. More lenient secondary threshold kicks in for medium/high confidence matches to handle appearance variations while preventing false positives."
 
   - task: "Add worker_url field to User model"
     implemented: true
