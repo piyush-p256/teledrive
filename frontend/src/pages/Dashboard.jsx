@@ -446,6 +446,15 @@ export default function Dashboard({ user, onLogout }) {
               </div>
 
               <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => navigate('/people')}
+                title="View People"
+              >
+                <Users className="w-5 h-5" />
+              </Button>
+
+              <Button
                 data-testid="settings-button"
                 variant="ghost"
                 size="icon"
