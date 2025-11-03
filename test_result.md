@@ -103,14 +103,17 @@
 #====================================================================================================
 
 user_problem_statement: |
-  Previous: Fixed file upload issues in TeleDrive
+  Previous: Fixed file upload issues in TeleDrive and added face recognition feature
   
-  Current: Add face recognition feature:
-  1. Process photos on user's device for face recognition using face-api.js
-  2. Store face data in database with descriptors and bounding boxes
-  3. Create frontend People page showing photos categorized by detected people
-  4. Allow naming people and clicking to view all photos with that person
-  5. Processing must happen on the uploading device, not on worker
+  Current Issue: Same people appearing as multiple entries in People page
+  - When uploading images, each image creates a new person entry even if same person appears in multiple photos
+  - Problem: Face matching was comparing against only ONE sample face per person
+  
+  Fix Applied:
+  - Enhanced find_or_create_person function to compare new faces against ALL existing faces of each person
+  - Uses minimum distance to ANY existing face for matching
+  - This handles different angles, lighting, and expressions much better
+  - Same person should now be grouped correctly across all their photos
 
 backend:
   - task: "Add FaceData and Person models for face recognition"
