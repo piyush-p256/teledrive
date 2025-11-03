@@ -124,6 +124,7 @@ export default function Dashboard({ user, onLogout }) {
       // Generate thumbnail
       let thumbnailUrl = null;
       let thumbnailProvider = null;
+      let imageElement = null;
 
       if (file.type.startsWith('image/')) {
         thumbnailUrl = await generateThumbnail(file);
@@ -134,6 +135,9 @@ export default function Dashboard({ user, onLogout }) {
           thumbnailUrl = await uploadToCloudinary(thumbnailUrl);
           thumbnailProvider = 'cloudinary';
         }
+        
+        // Create image element for face detection
+        imageElement = await loadImageFromFile(file);
       }
 
       // Upload to Telegram via worker
@@ -157,7 +161,91 @@ export default function Dashboard({ user, onLogout }) {
       }
 
       // Create file metadata
-      await axios.post(`${API}/files`, {
+      const fileResponse = await axios.post(`${API}/files`, {
+        name: file.name,
+        size: file.size,
+        mime_type: file.type,
+        telegram_msg_id: workerData.messageId,
+        telegram_file_id: workerData.fileId,
+        thumbnail_url: thumbnailUrl,
+        thumbnail_provider: thumbnailProvider,
+        folder_id: currentFolder,
+      });
+
+      const fileId = fileResponse.data.id;
+
+      // Detect faces if it's an image and models are loaded
+      if (imageElement && modelsLoaded) {
+        try {
+          await detectAndStoreFaces(imageElement, fileId);
+        } catch (faceError) {
+          console.error('Face detection error:', faceError);
+          // Don't fail the upload if face detection fails
+        }
+      }
+
+      toast.success(`${file.name} uploaded successfully!`);
+      loadData();
+    } catch (error) {
+      console.error('Upload error:', error);
+      toast.error(`Failed to upload ${file.name}: ${error.message}`);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const loadImageFromFile = (file) => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = reject;
+        img.src = e.target.result;
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const detectAndStoreFaces = async (imageElement, fileId) => {
+    try {
+      // Detect faces with landmarks and descriptors
+      const detections = await faceapi
+        .detectAllFaces(imageElement, new faceapi.TinyFaceDetectorOptions())
+        .withFaceLandmarks()
+        .withFaceDescriptors();
+
+      if (detections.length === 0) {
+        console.log('No faces detected in image');
+        return;
+      }
+
+      console.log(`Detected ${detections.length} face(s)`);
+
+      // Format detections for backend
+      const faceData = {
+        file_id: fileId,
+        detections: detections.map(detection => ({
+          box: {
+            x: detection.detection.box.x,
+            y: detection.detection.box.y,
+            width: detection.detection.box.width,
+            height: detection.detection.box.height,
+          },
+          descriptor: Array.from(detection.descriptor),
+          confidence: detection.detection.score,
+        })),
+      };
+
+      // Send to backend
+      await axios.post(`${API}/faces`, faceData);
+      console.log('Face data stored successfully');
+    } catch (error) {
+      console.error('Face detection/storage error:', error);
+      throw error;
+    }
+  };
         name: file.name,
         size: file.size,
         mime_type: file.type,
