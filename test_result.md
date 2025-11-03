@@ -186,13 +186,61 @@ backend:
         comment: "Enhanced endpoint at line 505-521 to return bot_token, channel_id, telegram_session, telegram_api_id, telegram_api_hash, user_id, and backend_url. Requires user authentication via JWT token."
 
 frontend:
-  - task: "Fix Dashboard upload to call actual worker instead of mock"
+  - task: "Install and configure face-api.js for client-side face detection"
+    implemented: true
+    working: true
+    file: "/app/frontend/package.json, /app/frontend/public/models/"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Installed face-api.js, @tensorflow/tfjs-core, and @tensorflow/tfjs-converter. Downloaded face detection models (tiny_face_detector, face_landmark_68, face_recognition) to /app/frontend/public/models/ directory."
+
+  - task: "Integrate face detection in Dashboard upload flow"
     implemented: true
     working: true
     file: "/app/frontend/src/pages/Dashboard.jsx"
     stuck_count: 0
     priority: "high"
     needs_retesting: true
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Modified Dashboard to load face-api.js models on mount. Added detectAndStoreFaces function to detect faces using TinyFaceDetector with landmarks and descriptors. Integrated into uploadFile function to process images after upload. Face detection runs on client device and sends descriptors to backend."
+
+  - task: "Create People page for face gallery"
+    implemented: true
+    working: true
+    file: "/app/frontend/src/pages/People.jsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Created new People.jsx page with split layout: left sidebar shows all detected people with thumbnails and photo counts, right panel shows photos for selected person. Includes rename functionality, delete person, and displays unnamed people as 'Person 1', 'Person 2', etc."
+
+  - task: "Add People navigation button and route"
+    implemented: true
+    working: true
+    file: "/app/frontend/src/App.js, /app/frontend/src/pages/Dashboard.jsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Added People route to App.js with authentication guard. Added Users icon button in Dashboard header to navigate to /people page."
+
+  - task: "Fix Dashboard upload to call actual worker instead of mock"
+    implemented: true
+    working: true
+    file: "/app/frontend/src/pages/Dashboard.jsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
     status_history:
       - working: true
         agent: "main"
