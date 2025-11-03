@@ -955,17 +955,22 @@ async def store_face_data(face_data: FaceDataCreate, current_user: User = Depend
         raise HTTPException(status_code=500, detail=str(e))
 
 
-async def find_or_create_person(user_id: str, descriptor: List[float], sample_photo_url: Optional[str], file_id: str) -> str:
-    """Find existing person by face similarity or create new person"""
+async def find_or_create_person(user_id: str, descriptor: List[float], sample_photo_url: Optional[str], file_id: str) -> tuple[str, bool]:
+    """Find existing person by face similarity or create new person
+    Returns: (person_id, is_new_person)
+    """
     import numpy as np
     
     # Get all existing people for this user
     people = await db.people.find({"user_id": user_id}).to_list(1000)
     
-    # Euclidean distance threshold for face matching (lower = more strict)
-    threshold = 0.6
+    # Euclidean distance threshold for face matching
+    # Lower = more strict matching (0.4-0.5 very strict, 0.6-0.7 more lenient)
+    threshold = 0.65
     
     new_descriptor = np.array(descriptor)
+    
+    logger.info(f"Comparing face against {len(people)} existing people")
     
     for person in people:
         # Get ALL faces from this person to compare against
@@ -984,23 +989,18 @@ async def find_or_create_person(user_id: str, descriptor: List[float], sample_ph
                 if distance < min_distance:
                     min_distance = distance
             
+            logger.info(f"Person {person.get('name', person['id'][:8])}: min_distance = {min_distance:.4f} (threshold: {threshold})")
+            
             # If the closest match is below threshold, this is the same person
             if min_distance < threshold:
-                # Match found! Update person's photo count
-                await db.people.update_one(
-                    {"id": person['id']},
-                    {
-                        "$inc": {"photo_count": 1},
-                        "$set": {"updated_at": datetime.now(timezone.utc).isoformat()}
-                    }
-                )
-                logger.info(f"Matched face to existing person {person['id']} with distance {min_distance:.4f}")
-                return person['id']
+                logger.info(f"✅ MATCH FOUND! Person {person.get('name', person['id'][:8])} with distance {min_distance:.4f}")
+                return person['id'], False
     
     # No match found, create new person
+    logger.info(f"❌ No match found (threshold: {threshold}), creating new person")
     person = Person(
         user_id=user_id,
-        photo_count=1,
+        photo_count=0,  # Will be calculated properly in the calling function
         sample_photo_url=sample_photo_url,
         sample_file_id=file_id
     )
@@ -1009,8 +1009,8 @@ async def find_or_create_person(user_id: str, descriptor: List[float], sample_ph
     person_dict['updated_at'] = person_dict['updated_at'].isoformat()
     await db.people.insert_one(person_dict)
     
-    logger.info(f"Created new person {person['id']} - no match found")
-    return person['id']
+    logger.info(f"Created new person {person['id']}")
+    return person['id'], True
 
 
 @api_router.get("/people", response_model=List[Person])
