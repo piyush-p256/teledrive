@@ -150,6 +150,44 @@ class TelegramQRRequest(BaseModel):
 class ChannelIdUpdate(BaseModel):
     channel_id: int
 
+class FaceDetection(BaseModel):
+    box: dict  # {x, y, width, height}
+    descriptor: List[float]  # 128-dimensional face descriptor
+    confidence: float
+
+class FaceDataCreate(BaseModel):
+    file_id: str
+    detections: List[FaceDetection]
+
+class FaceData(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    file_id: str
+    user_id: str
+    person_id: Optional[str] = None  # Assigned after grouping
+    descriptor: List[float]
+    box: dict  # Bounding box coordinates
+    confidence: float
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class Person(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    user_id: str
+    name: Optional[str] = None
+    photo_count: int = 0
+    sample_photo_url: Optional[str] = None
+    sample_file_id: Optional[str] = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class PersonUpdate(BaseModel):
+    name: str
+
+class PersonMerge(BaseModel):
+    person_ids: List[str]  # List of person IDs to merge
+    target_person_id: str  # The person to merge into
+
 
 # ========== AUTH HELPERS ==========
 
