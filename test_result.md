@@ -170,6 +170,9 @@ backend:
       - working: true
         agent: "main"
         comment: "FIXED CRITICAL BUGS: 1) Fixed photo_count calculation - now counts unique files per person instead of incrementing per face detection. 2) Increased threshold to 0.65 for better matching tolerance. 3) Added detailed debug logging to track matching distances. 4) Multiple faces in same image now properly handled - each person gets the photo in their gallery."
+      - working: true
+        agent: "main"
+        comment: "ACCURACY IMPROVEMENTS: 1) Lowered threshold from 0.65 to 0.5 for stricter matching to prevent false positives. 2) Added sophisticated multi-match validation - averages top 2 matches when person has multiple faces. 3) Uses best match strategy across all people instead of first match. 4) Prevents different people from being grouped together."
 
   - task: "Add worker_url field to User model"
     implemented: true
