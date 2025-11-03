@@ -957,6 +957,7 @@ async def store_face_data(face_data: FaceDataCreate, current_user: User = Depend
 
 async def find_or_create_person(user_id: str, descriptor: List[float], sample_photo_url: Optional[str], file_id: str) -> tuple[str, bool]:
     """Find existing person by face similarity or create new person
+    Handles variations like glasses, lighting, angles
     Returns: (person_id, is_new_person)
     """
     import numpy as np
@@ -964,10 +965,11 @@ async def find_or_create_person(user_id: str, descriptor: List[float], sample_ph
     # Get all existing people for this user
     people = await db.people.find({"user_id": user_id}).to_list(1000)
     
-    # Euclidean distance threshold for face matching
-    # Lower = more strict matching, reduces false positives
-    # Using 0.5 for high accuracy
-    threshold = 0.5
+    # Multi-tier matching thresholds for better accuracy with accessories
+    # Primary threshold: strict matching for clear cases
+    primary_threshold = 0.5
+    # Secondary threshold: more lenient for accessories like glasses
+    secondary_threshold = 0.58
     
     new_descriptor = np.array(descriptor)
     
@@ -975,6 +977,7 @@ async def find_or_create_person(user_id: str, descriptor: List[float], sample_ph
     
     best_match = None
     best_distance = float('inf')
+    best_match_quality = None
     
     for person in people:
         # Get ALL faces from this person to compare against
@@ -990,33 +993,51 @@ async def find_or_create_person(user_id: str, descriptor: List[float], sample_ph
                 distance = np.linalg.norm(new_descriptor - existing_descriptor)
                 distances.append(distance)
             
-            # Use minimum distance for matching
+            # Use multiple distance metrics for robustness
             min_distance = min(distances)
             
-            # For better accuracy: if person has multiple faces, check average of top matches
-            if len(distances) >= 2:
-                # Sort and take average of 2 best matches
+            # Calculate match quality based on multiple factors
+            if len(distances) >= 3:
+                # If 3+ faces: use average of best 3 matches
                 distances_sorted = sorted(distances)
-                avg_top2 = (distances_sorted[0] + distances_sorted[1]) / 2
-                # Use average if it's stricter
-                final_distance = min(min_distance, avg_top2)
+                avg_top3 = sum(distances_sorted[:3]) / 3
+                final_distance = (min_distance * 0.6 + avg_top3 * 0.4)  # Weighted average
+                match_quality = "high_confidence"
+            elif len(distances) >= 2:
+                # If 2 faces: use average of both
+                avg_top2 = sum(sorted(distances)[:2]) / 2
+                final_distance = (min_distance * 0.7 + avg_top2 * 0.3)
+                match_quality = "medium_confidence"
             else:
+                # Single face: use minimum distance but be more lenient
                 final_distance = min_distance
+                match_quality = "low_confidence"
             
-            logger.info(f"Person {person.get('name', person['id'][:8])}: distance = {final_distance:.4f} (threshold: {threshold})")
+            logger.info(f"Person {person.get('name', person['id'][:8])}: distance = {final_distance:.4f}, min = {min_distance:.4f}, quality = {match_quality}")
             
             # Track best overall match
             if final_distance < best_distance:
                 best_distance = final_distance
                 best_match = person
+                best_match_quality = match_quality
     
-    # If best match is below threshold, use it
-    if best_match and best_distance < threshold:
-        logger.info(f"✅ MATCH FOUND! Person {best_match.get('name', best_match['id'][:8])} with distance {best_distance:.4f}")
+    # Use tiered threshold approach
+    matched = False
+    if best_match:
+        # Primary threshold: strict matching
+        if best_distance < primary_threshold:
+            matched = True
+            logger.info(f"✅ PRIMARY MATCH! Person {best_match.get('name', best_match['id'][:8])} with distance {best_distance:.4f}")
+        # Secondary threshold: for cases with accessories (glasses, etc)
+        elif best_distance < secondary_threshold and best_match_quality in ["high_confidence", "medium_confidence"]:
+            matched = True
+            logger.info(f"✅ SECONDARY MATCH (accessories/variation)! Person {best_match.get('name', best_match['id'][:8])} with distance {best_distance:.4f}")
+    
+    if matched:
         return best_match['id'], False
     
     # No match found, create new person
-    logger.info(f"❌ No match found (best distance: {best_distance:.4f}, threshold: {threshold}), creating new person")
+    logger.info(f"❌ No match found (best distance: {best_distance:.4f}, primary threshold: {primary_threshold}, secondary: {secondary_threshold}), creating new person")
     person = Person(
         user_id=user_id,
         photo_count=0,  # Will be calculated properly in the calling function
