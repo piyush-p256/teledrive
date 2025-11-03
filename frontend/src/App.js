@@ -103,6 +103,16 @@ function App() {
               )
             }
           />
+          <Route
+            path="/people"
+            element={
+              isAuthenticated ? (
+                <People user={user} onLogout={handleLogout} />
+              ) : (
+                <Navigate to="/auth" replace />
+              )
+            }
+          />
           <Route path="/share/:token" element={<SharedFile />} />
           <Route
             path="/"
