@@ -965,8 +965,10 @@ async def find_or_create_person(user_id: str, descriptor: List[float], sample_ph
     people = await db.people.find({"user_id": user_id}).to_list(1000)
     
     # Euclidean distance threshold for face matching
-    # Lower = more strict matching (0.4-0.5 very strict, 0.6-0.7 more lenient)
-    threshold = 0.65
+    # Lower = more strict matching, reduces false positives
+    # Typical values: 0.4 (very strict) to 0.6 (lenient)
+    # Using 0.5 for good balance between accuracy and grouping
+    threshold = 0.5
     
     new_descriptor = np.array(descriptor)
     
