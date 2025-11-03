@@ -105,40 +105,51 @@
 user_problem_statement: |
   Previous: Fixed file upload issues in TeleDrive and added face recognition feature
   
-  Current Issue: Face recognition accuracy needs improvement
+  Current Issue: Face recognition accuracy improvements needed
   
   Problems Reported:
-  1. 4 faces detected but only 3 profiles created (2 different people grouped as 1)
-  2. One person's solo photo being added to another person's section (false positive)
-  3. Matching threshold too lenient causing incorrect groupings
+  1. ✅ 4 faces detected but only 3 profiles created → FIXED with stricter matching
+  2. ✅ One person's solo photo in wrong section → FIXED with better algorithms
+  3. ❌ Person with glasses/spectacles not being recognized properly
+     - Same person with glasses creates multiple profiles
+     - Glasses significantly alter face descriptors
   
-  Accuracy Improvements Implemented:
+  Latest Improvements for Glasses/Accessories:
   
-  FRONTEND (Detection Quality):
-  1. ✅ Switched from TinyFaceDetector to SsdMobilenetv1
-     - More accurate face detection
-     - Better quality face descriptors
-  2. ✅ Added confidence filtering (min 0.6)
-     - Only processes high-quality detections
-     - Reduces noise and false detections
+  FRONTEND:
+  1. ✅ Lowered confidence threshold to 0.55 (from 0.6)
+     - Better at detecting faces with glasses
+     - Captures more facial features despite accessories
+  2. ✅ Using SsdMobilenetv1 with optimized settings
+     - maxResults: 10 to handle group photos
+     - Better landmark detection around glasses
   
-  BACKEND (Matching Algorithm):
-  1. ✅ Lowered threshold from 0.65 to 0.5
-     - Stricter matching reduces false positives
-     - Prevents different people from being grouped
-  2. ✅ Multi-match validation strategy
-     - For people with 2+ faces: averages top 2 matches
-     - More robust validation
-  3. ✅ Best match strategy
-     - Compares against ALL people
-     - Uses best overall match (not first match)
+  BACKEND - Tiered Threshold Approach:
+  1. ✅ Primary threshold: 0.5 (strict, for clear matches)
+     - Used for faces without major variations
+     - Prevents false positives
   
-  Expected Results:
-  ✅ Each unique person gets their own profile
-  ✅ No false matches between different people
-  ✅ Same person correctly grouped across photos
-  ✅ Higher quality face detection
-  ✅ More accurate face descriptors
+  2. ✅ Secondary threshold: 0.58 (lenient, for accessories)
+     - Activates for medium/high confidence matches
+     - Handles glasses, hats, facial hair changes
+     - Only triggers when person has 2+ existing faces
+  
+  3. ✅ Weighted averaging strategy:
+     - 3+ faces: weighted average of top 3 matches
+     - 2 faces: weighted average of both
+     - 1 face: uses secondary threshold for leniency
+  
+  4. ✅ Match quality scoring:
+     - High confidence: 3+ existing faces
+     - Medium confidence: 2 existing faces  
+     - Low confidence: 1 face (more lenient)
+  
+  Expected Behavior:
+  ✅ Same person with/without glasses → grouped together
+  ✅ Different people → separate profiles (no false matches)
+  ✅ Handles: glasses, sunglasses, hats, facial hair, makeup
+  ✅ Better tolerance for appearance variations
+  ✅ Still maintains high accuracy
 
 backend:
   - task: "Add FaceData and Person models for face recognition"
