@@ -148,6 +148,9 @@ backend:
       - working: true
         agent: "main"
         comment: "Created find_or_create_person function (lines 930-969) that uses numpy to calculate Euclidean distance between 128-dimensional face descriptors. Uses threshold of 0.6 for matching. Auto-groups same person across multiple photos."
+      - working: true
+        agent: "main"
+        comment: "IMPROVED: Enhanced face matching to compare against ALL existing faces of each person instead of just one sample face. This fixes duplicate person entries by finding minimum distance to any existing face of that person. Now handles different angles, lighting, and expressions much better."
 
   - task: "Add worker_url field to User model"
     implemented: true
