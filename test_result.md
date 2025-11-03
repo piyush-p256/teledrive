@@ -219,6 +219,9 @@ frontend:
       - working: true
         agent: "main"
         comment: "Installed face-api.js, @tensorflow/tfjs-core, and @tensorflow/tfjs-converter. Downloaded face detection models (tiny_face_detector, face_landmark_68, face_recognition) to /app/frontend/public/models/ directory."
+      - working: true
+        agent: "main"
+        comment: "UPGRADED: Switched from TinyFaceDetector to SsdMobilenetv1 for significantly better accuracy. Added confidence filtering (min 0.6) to only process high-quality face detections. Downloaded ssd_mobilenetv1 model files."
 
   - task: "Integrate face detection in Dashboard upload flow"
     implemented: true
