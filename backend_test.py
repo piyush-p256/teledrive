@@ -292,6 +292,568 @@ class TeleStoreAPITester:
             self.log_result("Backend Connectivity", False, f"Cannot reach backend: {str(e)}")
             return False
     
+    # ========== FACE RECOGNITION TESTS ==========
+    
+    def create_test_file(self):
+        """Create a test file for face recognition tests"""
+        if not self.auth_token:
+            return None
+            
+        try:
+            headers = {"Authorization": f"Bearer {self.auth_token}"}
+            payload = {
+                "name": "test_photo.jpg",
+                "size": 1024000,
+                "mime_type": "image/jpeg",
+                "telegram_msg_id": 12345,
+                "telegram_file_id": "test_file_id_123",
+                "thumbnail_url": "https://example.com/thumb.jpg"
+            }
+            
+            response = self.session.post(f"{BASE_URL}/files", json=payload, headers=headers)
+            
+            if response.status_code == 200:
+                data = response.json()
+                return data.get('id')
+            else:
+                self.log_result("Create Test File", False, f"HTTP {response.status_code}", response.text)
+                return None
+                
+        except Exception as e:
+            self.log_result("Create Test File", False, f"Request failed: {str(e)}")
+            return None
+    
+    def test_store_face_data(self):
+        """Test POST /api/faces - Store face detection data"""
+        if not self.auth_token:
+            self.log_result("Store Face Data", False, "No auth token available")
+            return False
+        
+        # Create a test file first
+        file_id = self.create_test_file()
+        if not file_id:
+            self.log_result("Store Face Data", False, "Could not create test file")
+            return False
+            
+        try:
+            headers = {"Authorization": f"Bearer {self.auth_token}"}
+            
+            # Mock face descriptors (128-dimensional float arrays)
+            face_descriptor_1 = [0.1] * 128  # Simple mock descriptor
+            face_descriptor_2 = [0.9] * 128  # Different mock descriptor
+            
+            payload = {
+                "file_id": file_id,
+                "detections": [
+                    {
+                        "box": {"x": 100, "y": 150, "width": 80, "height": 100},
+                        "descriptor": face_descriptor_1,
+                        "confidence": 0.95
+                    },
+                    {
+                        "box": {"x": 300, "y": 200, "width": 75, "height": 95},
+                        "descriptor": face_descriptor_2,
+                        "confidence": 0.88
+                    }
+                ]
+            }
+            
+            response = self.session.post(f"{BASE_URL}/faces", json=payload, headers=headers)
+            
+            if response.status_code == 200:
+                data = response.json()
+                if data.get('success') and 'face_ids' in data:
+                    self.log_result("Store Face Data", True, f"Successfully stored {len(data['face_ids'])} faces")
+                    return True
+                else:
+                    self.log_result("Store Face Data", False, "Invalid response format", data)
+                    return False
+            else:
+                self.log_result("Store Face Data", False, f"HTTP {response.status_code}", response.text)
+                return False
+                
+        except Exception as e:
+            self.log_result("Store Face Data", False, f"Request failed: {str(e)}")
+            return False
+    
+    def test_store_face_data_invalid_file(self):
+        """Test POST /api/faces with non-existent file_id"""
+        if not self.auth_token:
+            self.log_result("Store Face Data (Invalid File)", False, "No auth token available")
+            return False
+            
+        try:
+            headers = {"Authorization": f"Bearer {self.auth_token}"}
+            
+            payload = {
+                "file_id": "non_existent_file_id",
+                "detections": [
+                    {
+                        "box": {"x": 100, "y": 150, "width": 80, "height": 100},
+                        "descriptor": [0.1] * 128,
+                        "confidence": 0.95
+                    }
+                ]
+            }
+            
+            response = self.session.post(f"{BASE_URL}/faces", json=payload, headers=headers)
+            
+            if response.status_code == 404:
+                self.log_result("Store Face Data (Invalid File)", True, "Correctly rejected non-existent file")
+                return True
+            else:
+                self.log_result("Store Face Data (Invalid File)", False, f"Expected 404, got HTTP {response.status_code}", response.text)
+                return False
+                
+        except Exception as e:
+            self.log_result("Store Face Data (Invalid File)", False, f"Request failed: {str(e)}")
+            return False
+    
+    def test_list_people(self):
+        """Test GET /api/people - List all detected people"""
+        if not self.auth_token:
+            self.log_result("List People", False, "No auth token available")
+            return False
+            
+        try:
+            headers = {"Authorization": f"Bearer {self.auth_token}"}
+            response = self.session.get(f"{BASE_URL}/people", headers=headers)
+            
+            if response.status_code == 200:
+                data = response.json()
+                if isinstance(data, list):
+                    self.log_result("List People", True, f"Successfully retrieved {len(data)} people")
+                    return True
+                else:
+                    self.log_result("List People", False, "Response is not a list", data)
+                    return False
+            else:
+                self.log_result("List People", False, f"HTTP {response.status_code}", response.text)
+                return False
+                
+        except Exception as e:
+            self.log_result("List People", False, f"Request failed: {str(e)}")
+            return False
+    
+    def test_list_people_unauthorized(self):
+        """Test GET /api/people without authentication"""
+        try:
+            response = self.session.get(f"{BASE_URL}/people")
+            
+            if response.status_code in [401, 403]:
+                self.log_result("List People (Unauthorized)", True, "Correctly requires authentication")
+                return True
+            else:
+                self.log_result("List People (Unauthorized)", False, f"Expected 401/403, got HTTP {response.status_code}")
+                return False
+                
+        except Exception as e:
+            self.log_result("List People (Unauthorized)", False, f"Request failed: {str(e)}")
+            return False
+    
+    def get_or_create_person_for_testing(self):
+        """Helper method to get or create a person for testing"""
+        if not self.auth_token:
+            return None
+            
+        # First try to get existing people
+        try:
+            headers = {"Authorization": f"Bearer {self.auth_token}"}
+            response = self.session.get(f"{BASE_URL}/people", headers=headers)
+            
+            if response.status_code == 200:
+                people = response.json()
+                if people:
+                    return people[0]['id']  # Return first person's ID
+            
+            # If no people exist, create face data which will create a person
+            file_id = self.create_test_file()
+            if file_id:
+                payload = {
+                    "file_id": file_id,
+                    "detections": [
+                        {
+                            "box": {"x": 100, "y": 150, "width": 80, "height": 100},
+                            "descriptor": [0.5] * 128,
+                            "confidence": 0.95
+                        }
+                    ]
+                }
+                
+                response = self.session.post(f"{BASE_URL}/faces", json=payload, headers=headers)
+                if response.status_code == 200:
+                    # Now get the created person
+                    response = self.session.get(f"{BASE_URL}/people", headers=headers)
+                    if response.status_code == 200:
+                        people = response.json()
+                        if people:
+                            return people[0]['id']
+            
+            return None
+                
+        except Exception:
+            return None
+    
+    def test_update_person_name(self):
+        """Test PUT /api/people/{person_id}/name - Update person name"""
+        if not self.auth_token:
+            self.log_result("Update Person Name", False, "No auth token available")
+            return False
+        
+        person_id = self.get_or_create_person_for_testing()
+        if not person_id:
+            self.log_result("Update Person Name", False, "Could not get/create person for testing")
+            return False
+            
+        try:
+            headers = {"Authorization": f"Bearer {self.auth_token}"}
+            payload = {"name": "John Doe"}
+            
+            response = self.session.put(f"{BASE_URL}/people/{person_id}/name", json=payload, headers=headers)
+            
+            if response.status_code == 200:
+                data = response.json()
+                if data.get('success'):
+                    self.log_result("Update Person Name", True, "Successfully updated person name")
+                    return True
+                else:
+                    self.log_result("Update Person Name", False, "Invalid response format", data)
+                    return False
+            else:
+                self.log_result("Update Person Name", False, f"HTTP {response.status_code}", response.text)
+                return False
+                
+        except Exception as e:
+            self.log_result("Update Person Name", False, f"Request failed: {str(e)}")
+            return False
+    
+    def test_update_person_name_invalid_id(self):
+        """Test PUT /api/people/{person_id}/name with invalid person_id"""
+        if not self.auth_token:
+            self.log_result("Update Person Name (Invalid ID)", False, "No auth token available")
+            return False
+            
+        try:
+            headers = {"Authorization": f"Bearer {self.auth_token}"}
+            payload = {"name": "John Doe"}
+            
+            response = self.session.put(f"{BASE_URL}/people/invalid_person_id/name", json=payload, headers=headers)
+            
+            if response.status_code == 404:
+                self.log_result("Update Person Name (Invalid ID)", True, "Correctly returned 404 for invalid person ID")
+                return True
+            else:
+                self.log_result("Update Person Name (Invalid ID)", False, f"Expected 404, got HTTP {response.status_code}", response.text)
+                return False
+                
+        except Exception as e:
+            self.log_result("Update Person Name (Invalid ID)", False, f"Request failed: {str(e)}")
+            return False
+    
+    def test_get_person_photos(self):
+        """Test GET /api/people/{person_id}/photos - Get photos for a person"""
+        if not self.auth_token:
+            self.log_result("Get Person Photos", False, "No auth token available")
+            return False
+        
+        person_id = self.get_or_create_person_for_testing()
+        if not person_id:
+            self.log_result("Get Person Photos", False, "Could not get/create person for testing")
+            return False
+            
+        try:
+            headers = {"Authorization": f"Bearer {self.auth_token}"}
+            response = self.session.get(f"{BASE_URL}/people/{person_id}/photos", headers=headers)
+            
+            if response.status_code == 200:
+                data = response.json()
+                if isinstance(data, list):
+                    self.log_result("Get Person Photos", True, f"Successfully retrieved {len(data)} photos for person")
+                    return True
+                else:
+                    self.log_result("Get Person Photos", False, "Response is not a list", data)
+                    return False
+            else:
+                self.log_result("Get Person Photos", False, f"HTTP {response.status_code}", response.text)
+                return False
+                
+        except Exception as e:
+            self.log_result("Get Person Photos", False, f"Request failed: {str(e)}")
+            return False
+    
+    def test_get_person_photos_invalid_id(self):
+        """Test GET /api/people/{person_id}/photos with invalid person_id"""
+        if not self.auth_token:
+            self.log_result("Get Person Photos (Invalid ID)", False, "No auth token available")
+            return False
+            
+        try:
+            headers = {"Authorization": f"Bearer {self.auth_token}"}
+            response = self.session.get(f"{BASE_URL}/people/invalid_person_id/photos", headers=headers)
+            
+            if response.status_code == 404:
+                self.log_result("Get Person Photos (Invalid ID)", True, "Correctly returned 404 for invalid person ID")
+                return True
+            else:
+                self.log_result("Get Person Photos (Invalid ID)", False, f"Expected 404, got HTTP {response.status_code}", response.text)
+                return False
+                
+        except Exception as e:
+            self.log_result("Get Person Photos (Invalid ID)", False, f"Request failed: {str(e)}")
+            return False
+    
+    def create_multiple_people_for_merge_test(self):
+        """Helper to create multiple people for merge testing"""
+        if not self.auth_token:
+            return None, None
+            
+        try:
+            headers = {"Authorization": f"Bearer {self.auth_token}"}
+            
+            # Create two different files with different face descriptors
+            file_id_1 = self.create_test_file()
+            file_id_2 = self.create_test_file()
+            
+            if not file_id_1 or not file_id_2:
+                return None, None
+            
+            # Create faces with different descriptors to create separate people
+            payload_1 = {
+                "file_id": file_id_1,
+                "detections": [
+                    {
+                        "box": {"x": 100, "y": 150, "width": 80, "height": 100},
+                        "descriptor": [0.1] * 128,  # First unique descriptor
+                        "confidence": 0.95
+                    }
+                ]
+            }
+            
+            payload_2 = {
+                "file_id": file_id_2,
+                "detections": [
+                    {
+                        "box": {"x": 200, "y": 250, "width": 85, "height": 105},
+                        "descriptor": [0.9] * 128,  # Second unique descriptor (very different)
+                        "confidence": 0.92
+                    }
+                ]
+            }
+            
+            # Store both face detections
+            response_1 = self.session.post(f"{BASE_URL}/faces", json=payload_1, headers=headers)
+            response_2 = self.session.post(f"{BASE_URL}/faces", json=payload_2, headers=headers)
+            
+            if response_1.status_code == 200 and response_2.status_code == 200:
+                # Get the people list to find the created person IDs
+                response = self.session.get(f"{BASE_URL}/people", headers=headers)
+                if response.status_code == 200:
+                    people = response.json()
+                    if len(people) >= 2:
+                        return people[0]['id'], people[1]['id']
+            
+            return None, None
+                
+        except Exception:
+            return None, None
+    
+    def test_merge_people(self):
+        """Test POST /api/people/merge - Merge duplicate people"""
+        if not self.auth_token:
+            self.log_result("Merge People", False, "No auth token available")
+            return False
+        
+        person_id_1, person_id_2 = self.create_multiple_people_for_merge_test()
+        if not person_id_1 or not person_id_2:
+            self.log_result("Merge People", False, "Could not create multiple people for testing")
+            return False
+            
+        try:
+            headers = {"Authorization": f"Bearer {self.auth_token}"}
+            payload = {
+                "person_ids": [person_id_2],  # Source person to merge
+                "target_person_id": person_id_1  # Target person to merge into
+            }
+            
+            response = self.session.post(f"{BASE_URL}/people/merge", json=payload, headers=headers)
+            
+            if response.status_code == 200:
+                data = response.json()
+                if data.get('success'):
+                    self.log_result("Merge People", True, "Successfully merged people")
+                    return True
+                else:
+                    self.log_result("Merge People", False, "Invalid response format", data)
+                    return False
+            else:
+                self.log_result("Merge People", False, f"HTTP {response.status_code}", response.text)
+                return False
+                
+        except Exception as e:
+            self.log_result("Merge People", False, f"Request failed: {str(e)}")
+            return False
+    
+    def test_merge_people_invalid_ids(self):
+        """Test POST /api/people/merge with invalid person IDs"""
+        if not self.auth_token:
+            self.log_result("Merge People (Invalid IDs)", False, "No auth token available")
+            return False
+            
+        try:
+            headers = {"Authorization": f"Bearer {self.auth_token}"}
+            payload = {
+                "person_ids": ["invalid_id_1", "invalid_id_2"],
+                "target_person_id": "invalid_target_id"
+            }
+            
+            response = self.session.post(f"{BASE_URL}/people/merge", json=payload, headers=headers)
+            
+            if response.status_code == 404:
+                self.log_result("Merge People (Invalid IDs)", True, "Correctly returned 404 for invalid person IDs")
+                return True
+            else:
+                self.log_result("Merge People (Invalid IDs)", False, f"Expected 404, got HTTP {response.status_code}", response.text)
+                return False
+                
+        except Exception as e:
+            self.log_result("Merge People (Invalid IDs)", False, f"Request failed: {str(e)}")
+            return False
+    
+    def test_delete_person(self):
+        """Test DELETE /api/people/{person_id} - Delete person"""
+        if not self.auth_token:
+            self.log_result("Delete Person", False, "No auth token available")
+            return False
+        
+        person_id = self.get_or_create_person_for_testing()
+        if not person_id:
+            self.log_result("Delete Person", False, "Could not get/create person for testing")
+            return False
+            
+        try:
+            headers = {"Authorization": f"Bearer {self.auth_token}"}
+            response = self.session.delete(f"{BASE_URL}/people/{person_id}", headers=headers)
+            
+            if response.status_code == 200:
+                data = response.json()
+                if data.get('success'):
+                    self.log_result("Delete Person", True, "Successfully deleted person")
+                    return True
+                else:
+                    self.log_result("Delete Person", False, "Invalid response format", data)
+                    return False
+            else:
+                self.log_result("Delete Person", False, f"HTTP {response.status_code}", response.text)
+                return False
+                
+        except Exception as e:
+            self.log_result("Delete Person", False, f"Request failed: {str(e)}")
+            return False
+    
+    def test_delete_person_invalid_id(self):
+        """Test DELETE /api/people/{person_id} with invalid person_id"""
+        if not self.auth_token:
+            self.log_result("Delete Person (Invalid ID)", False, "No auth token available")
+            return False
+            
+        try:
+            headers = {"Authorization": f"Bearer {self.auth_token}"}
+            response = self.session.delete(f"{BASE_URL}/people/invalid_person_id", headers=headers)
+            
+            if response.status_code == 404:
+                self.log_result("Delete Person (Invalid ID)", True, "Correctly returned 404 for invalid person ID")
+                return True
+            else:
+                self.log_result("Delete Person (Invalid ID)", False, f"Expected 404, got HTTP {response.status_code}", response.text)
+                return False
+                
+        except Exception as e:
+            self.log_result("Delete Person (Invalid ID)", False, f"Request failed: {str(e)}")
+            return False
+    
+    def test_face_matching_algorithm(self):
+        """Test that similar faces get grouped to same person"""
+        if not self.auth_token:
+            self.log_result("Face Matching Algorithm", False, "No auth token available")
+            return False
+        
+        # Create a test file
+        file_id = self.create_test_file()
+        if not file_id:
+            self.log_result("Face Matching Algorithm", False, "Could not create test file")
+            return False
+            
+        try:
+            headers = {"Authorization": f"Bearer {self.auth_token}"}
+            
+            # Create two very similar face descriptors (should match)
+            similar_descriptor_1 = [0.5] * 128
+            similar_descriptor_2 = [0.51] * 128  # Very similar to first one
+            
+            # Store first face
+            payload_1 = {
+                "file_id": file_id,
+                "detections": [
+                    {
+                        "box": {"x": 100, "y": 150, "width": 80, "height": 100},
+                        "descriptor": similar_descriptor_1,
+                        "confidence": 0.95
+                    }
+                ]
+            }
+            
+            response_1 = self.session.post(f"{BASE_URL}/faces", json=payload_1, headers=headers)
+            
+            if response_1.status_code != 200:
+                self.log_result("Face Matching Algorithm", False, "Failed to store first face")
+                return False
+            
+            # Get people count after first face
+            people_response = self.session.get(f"{BASE_URL}/people", headers=headers)
+            if people_response.status_code != 200:
+                self.log_result("Face Matching Algorithm", False, "Failed to get people list")
+                return False
+            
+            people_count_1 = len(people_response.json())
+            
+            # Store second similar face
+            payload_2 = {
+                "file_id": file_id,
+                "detections": [
+                    {
+                        "box": {"x": 200, "y": 250, "width": 85, "height": 105},
+                        "descriptor": similar_descriptor_2,
+                        "confidence": 0.92
+                    }
+                ]
+            }
+            
+            response_2 = self.session.post(f"{BASE_URL}/faces", json=payload_2, headers=headers)
+            
+            if response_2.status_code != 200:
+                self.log_result("Face Matching Algorithm", False, "Failed to store second face")
+                return False
+            
+            # Get people count after second face
+            people_response = self.session.get(f"{BASE_URL}/people", headers=headers)
+            if people_response.status_code != 200:
+                self.log_result("Face Matching Algorithm", False, "Failed to get people list after second face")
+                return False
+            
+            people_count_2 = len(people_response.json())
+            
+            # Similar faces should be grouped to same person (no new person created)
+            if people_count_2 == people_count_1:
+                self.log_result("Face Matching Algorithm", True, "Similar faces correctly grouped to same person")
+                return True
+            else:
+                self.log_result("Face Matching Algorithm", False, f"Expected same person count, got {people_count_1} -> {people_count_2}")
+                return False
+                
+        except Exception as e:
+            self.log_result("Face Matching Algorithm", False, f"Request failed: {str(e)}")
+            return False
+    
     def run_all_tests(self):
         """Run all tests in sequence"""
         print("=" * 60)
