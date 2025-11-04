@@ -847,6 +847,56 @@ export default function Dashboard({ user, onLogout }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Bulk Share Dialog */}
+      <Dialog open={bulkShareDialog} onOpenChange={setBulkShareDialog}>
+        <DialogContent data-testid="bulk-share-dialog" className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Share Links Generated</DialogTitle>
+            <DialogDescription>
+              {shareLinks.length} files are now publicly accessible via these links
+            </DialogDescription>
+          </DialogHeader>
+          <div className="max-h-96 overflow-y-auto space-y-2">
+            {shareLinks.map((link) => (
+              <div key={link.file_id} className="p-3 bg-gray-50 rounded-lg">
+                <p className="font-medium text-sm truncate mb-1">{link.file_name}</p>
+                <div className="flex items-center space-x-2">
+                  <Input
+                    value={`${window.location.origin}${link.share_url}`}
+                    readOnly
+                    className="text-xs"
+                  />
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      navigator.clipboard.writeText(`${window.location.origin}${link.share_url}`);
+                      toast.success('Link copied!');
+                    }}
+                  >
+                    Copy
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setBulkShareDialog(false)}
+            >
+              Close
+            </Button>
+            <Button
+              onClick={copyAllShareLinks}
+              className="bg-indigo-600 hover:bg-indigo-700"
+            >
+              Copy All Links
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
