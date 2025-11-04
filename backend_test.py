@@ -854,6 +854,334 @@ class TeleStoreAPITester:
             self.log_result("Face Matching Algorithm", False, f"Request failed: {str(e)}")
             return False
     
+    # ========== BULK SHARE TESTS ==========
+    
+    def create_multiple_test_files(self, count=3):
+        """Create multiple test files for bulk operations"""
+        if not self.auth_token:
+            return []
+            
+        file_ids = []
+        try:
+            headers = {"Authorization": f"Bearer {self.auth_token}"}
+            
+            for i in range(count):
+                payload = {
+                    "name": f"test_photo_{i+1}.jpg",
+                    "size": 1024000 + i * 1000,  # Slightly different sizes
+                    "mime_type": "image/jpeg",
+                    "telegram_msg_id": 12345 + i,
+                    "telegram_file_id": f"test_file_id_{i+1}",
+                    "thumbnail_url": f"https://example.com/thumb_{i+1}.jpg"
+                }
+                
+                response = self.session.post(f"{BASE_URL}/files", json=payload, headers=headers)
+                
+                if response.status_code == 200:
+                    data = response.json()
+                    file_ids.append(data.get('id'))
+                else:
+                    self.log_result("Create Multiple Test Files", False, f"Failed to create file {i+1}: HTTP {response.status_code}")
+                    return []
+            
+            return file_ids
+                
+        except Exception as e:
+            self.log_result("Create Multiple Test Files", False, f"Request failed: {str(e)}")
+            return []
+    
+    def test_bulk_share_single_file(self):
+        """Test POST /api/files/bulk-share with single file (backward compatibility)"""
+        if not self.auth_token:
+            self.log_result("Bulk Share Single File", False, "No auth token available")
+            return False
+        
+        # Create a single test file
+        file_ids = self.create_multiple_test_files(1)
+        if not file_ids:
+            self.log_result("Bulk Share Single File", False, "Could not create test file")
+            return False
+            
+        try:
+            headers = {"Authorization": f"Bearer {self.auth_token}"}
+            payload = {"file_ids": file_ids}
+            
+            response = self.session.post(f"{BASE_URL}/files/bulk-share", json=payload, headers=headers)
+            
+            if response.status_code == 200:
+                data = response.json()
+                expected_fields = ['success', 'share_type', 'share_url', 'share_token']
+                
+                if all(field in data for field in expected_fields):
+                    if data['share_type'] == 'single' and data['success']:
+                        self.log_result("Bulk Share Single File", True, "Single file share works correctly (backward compatibility)")
+                        return True
+                    else:
+                        self.log_result("Bulk Share Single File", False, f"Wrong share_type or success flag: {data}")
+                        return False
+                else:
+                    self.log_result("Bulk Share Single File", False, f"Missing required fields in response: {data}")
+                    return False
+            else:
+                self.log_result("Bulk Share Single File", False, f"HTTP {response.status_code}", response.text)
+                return False
+                
+        except Exception as e:
+            self.log_result("Bulk Share Single File", False, f"Request failed: {str(e)}")
+            return False
+    
+    def test_bulk_share_multiple_files(self):
+        """Test POST /api/files/bulk-share with multiple files (collection)"""
+        if not self.auth_token:
+            self.log_result("Bulk Share Multiple Files", False, "No auth token available")
+            return False
+        
+        # Create multiple test files
+        file_ids = self.create_multiple_test_files(3)
+        if len(file_ids) != 3:
+            self.log_result("Bulk Share Multiple Files", False, "Could not create 3 test files")
+            return False
+            
+        try:
+            headers = {"Authorization": f"Bearer {self.auth_token}"}
+            payload = {"file_ids": file_ids}
+            
+            response = self.session.post(f"{BASE_URL}/files/bulk-share", json=payload, headers=headers)
+            
+            if response.status_code == 200:
+                data = response.json()
+                expected_fields = ['success', 'share_type', 'share_url', 'share_token', 'file_count']
+                
+                if all(field in data for field in expected_fields):
+                    if (data['share_type'] == 'collection' and 
+                        data['success'] and 
+                        data['file_count'] == 3 and
+                        '/share/collection/' in data['share_url']):
+                        self.log_result("Bulk Share Multiple Files", True, f"Collection created successfully with {data['file_count']} files")
+                        # Store share_token for subsequent tests
+                        self.collection_share_token = data['share_token']
+                        self.collection_file_ids = file_ids
+                        return True
+                    else:
+                        self.log_result("Bulk Share Multiple Files", False, f"Invalid collection data: {data}")
+                        return False
+                else:
+                    self.log_result("Bulk Share Multiple Files", False, f"Missing required fields in response: {data}")
+                    return False
+            else:
+                self.log_result("Bulk Share Multiple Files", False, f"HTTP {response.status_code}", response.text)
+                return False
+                
+        except Exception as e:
+            self.log_result("Bulk Share Multiple Files", False, f"Request failed: {str(e)}")
+            return False
+    
+    def test_bulk_share_empty_list(self):
+        """Test POST /api/files/bulk-share with empty file list"""
+        if not self.auth_token:
+            self.log_result("Bulk Share Empty List", False, "No auth token available")
+            return False
+            
+        try:
+            headers = {"Authorization": f"Bearer {self.auth_token}"}
+            payload = {"file_ids": []}
+            
+            response = self.session.post(f"{BASE_URL}/files/bulk-share", json=payload, headers=headers)
+            
+            if response.status_code == 400:
+                data = response.json()
+                if "no file ids" in data.get('detail', '').lower():
+                    self.log_result("Bulk Share Empty List", True, "Correctly rejected empty file list")
+                    return True
+                else:
+                    self.log_result("Bulk Share Empty List", False, f"Wrong error message: {data}")
+                    return False
+            else:
+                self.log_result("Bulk Share Empty List", False, f"Expected 400, got HTTP {response.status_code}", response.text)
+                return False
+                
+        except Exception as e:
+            self.log_result("Bulk Share Empty List", False, f"Request failed: {str(e)}")
+            return False
+    
+    def test_bulk_share_nonexistent_files(self):
+        """Test POST /api/files/bulk-share with non-existent file IDs"""
+        if not self.auth_token:
+            self.log_result("Bulk Share Nonexistent Files", False, "No auth token available")
+            return False
+            
+        try:
+            headers = {"Authorization": f"Bearer {self.auth_token}"}
+            payload = {"file_ids": ["nonexistent_id_1", "nonexistent_id_2"]}
+            
+            response = self.session.post(f"{BASE_URL}/files/bulk-share", json=payload, headers=headers)
+            
+            if response.status_code == 404:
+                data = response.json()
+                if "not found" in data.get('detail', '').lower():
+                    self.log_result("Bulk Share Nonexistent Files", True, "Correctly rejected non-existent files")
+                    return True
+                else:
+                    self.log_result("Bulk Share Nonexistent Files", False, f"Wrong error message: {data}")
+                    return False
+            else:
+                self.log_result("Bulk Share Nonexistent Files", False, f"Expected 404, got HTTP {response.status_code}", response.text)
+                return False
+                
+        except Exception as e:
+            self.log_result("Bulk Share Nonexistent Files", False, f"Request failed: {str(e)}")
+            return False
+    
+    def test_get_shared_collection(self):
+        """Test GET /api/share/collection/{token} - Get collection with all files"""
+        # This test depends on test_bulk_share_multiple_files running first
+        if not hasattr(self, 'collection_share_token'):
+            self.log_result("Get Shared Collection", False, "No collection share token available (run bulk share test first)")
+            return False
+            
+        try:
+            response = self.session.get(f"{BASE_URL}/share/collection/{self.collection_share_token}")
+            
+            if response.status_code == 200:
+                data = response.json()
+                expected_fields = ['collection', 'files', 'file_count']
+                
+                if all(field in data for field in expected_fields):
+                    collection = data['collection']
+                    files = data['files']
+                    file_count = data['file_count']
+                    
+                    if (isinstance(files, list) and 
+                        file_count == len(files) and 
+                        file_count == 3 and
+                        'share_token' in collection and
+                        'file_ids' in collection):
+                        self.log_result("Get Shared Collection", True, f"Successfully retrieved collection with {file_count} files")
+                        return True
+                    else:
+                        self.log_result("Get Shared Collection", False, f"Invalid collection structure: files={len(files)}, count={file_count}")
+                        return False
+                else:
+                    self.log_result("Get Shared Collection", False, f"Missing required fields in response: {data}")
+                    return False
+            else:
+                self.log_result("Get Shared Collection", False, f"HTTP {response.status_code}", response.text)
+                return False
+                
+        except Exception as e:
+            self.log_result("Get Shared Collection", False, f"Request failed: {str(e)}")
+            return False
+    
+    def test_get_shared_collection_invalid_token(self):
+        """Test GET /api/share/collection/{token} with invalid token"""
+        try:
+            response = self.session.get(f"{BASE_URL}/share/collection/invalid_token_123")
+            
+            if response.status_code == 404:
+                data = response.json()
+                if "not found" in data.get('detail', '').lower():
+                    self.log_result("Get Shared Collection (Invalid Token)", True, "Correctly returned 404 for invalid token")
+                    return True
+                else:
+                    self.log_result("Get Shared Collection (Invalid Token)", False, f"Wrong error message: {data}")
+                    return False
+            else:
+                self.log_result("Get Shared Collection (Invalid Token)", False, f"Expected 404, got HTTP {response.status_code}", response.text)
+                return False
+                
+        except Exception as e:
+            self.log_result("Get Shared Collection (Invalid Token)", False, f"Request failed: {str(e)}")
+            return False
+    
+    def test_get_collection_file_download_url(self):
+        """Test GET /api/share/collection/{token}/file/{file_id}/download-url"""
+        # This test depends on previous tests
+        if not hasattr(self, 'collection_share_token') or not hasattr(self, 'collection_file_ids'):
+            self.log_result("Get Collection File Download URL", False, "No collection data available (run previous tests first)")
+            return False
+            
+        try:
+            # Use the first file from the collection
+            file_id = self.collection_file_ids[0]
+            response = self.session.get(f"{BASE_URL}/share/collection/{self.collection_share_token}/file/{file_id}/download-url")
+            
+            if response.status_code == 200:
+                data = response.json()
+                expected_fields = ['download_url', 'file_name']
+                
+                if all(field in data for field in expected_fields):
+                    download_url = data['download_url']
+                    file_name = data['file_name']
+                    
+                    if download_url and file_name:
+                        self.log_result("Get Collection File Download URL", True, f"Successfully got download URL for file: {file_name}")
+                        return True
+                    else:
+                        self.log_result("Get Collection File Download URL", False, f"Empty download_url or file_name: {data}")
+                        return False
+                else:
+                    self.log_result("Get Collection File Download URL", False, f"Missing required fields in response: {data}")
+                    return False
+            elif response.status_code == 400:
+                # This is expected if bot token is not configured or file_id is missing
+                data = response.json()
+                if "bot token not configured" in data.get('detail', '').lower() or "unable to generate" in data.get('detail', '').lower():
+                    self.log_result("Get Collection File Download URL", True, "Correctly handled missing bot token/file_id (expected in test environment)")
+                    return True
+                else:
+                    self.log_result("Get Collection File Download URL", False, f"Unexpected 400 error: {data}")
+                    return False
+            else:
+                self.log_result("Get Collection File Download URL", False, f"HTTP {response.status_code}", response.text)
+                return False
+                
+        except Exception as e:
+            self.log_result("Get Collection File Download URL", False, f"Request failed: {str(e)}")
+            return False
+    
+    def test_get_collection_file_download_url_invalid_file(self):
+        """Test GET /api/share/collection/{token}/file/{file_id}/download-url with file not in collection"""
+        if not hasattr(self, 'collection_share_token'):
+            self.log_result("Get Collection File Download URL (Invalid File)", False, "No collection share token available")
+            return False
+            
+        try:
+            # Use a non-existent file ID
+            response = self.session.get(f"{BASE_URL}/share/collection/{self.collection_share_token}/file/invalid_file_id/download-url")
+            
+            if response.status_code == 404:
+                data = response.json()
+                if "not in this collection" in data.get('detail', '').lower() or "not found" in data.get('detail', '').lower():
+                    self.log_result("Get Collection File Download URL (Invalid File)", True, "Correctly rejected file not in collection")
+                    return True
+                else:
+                    self.log_result("Get Collection File Download URL (Invalid File)", False, f"Wrong error message: {data}")
+                    return False
+            else:
+                self.log_result("Get Collection File Download URL (Invalid File)", False, f"Expected 404, got HTTP {response.status_code}", response.text)
+                return False
+                
+        except Exception as e:
+            self.log_result("Get Collection File Download URL (Invalid File)", False, f"Request failed: {str(e)}")
+            return False
+    
+    def test_bulk_share_unauthorized(self):
+        """Test POST /api/files/bulk-share without authentication"""
+        try:
+            payload = {"file_ids": ["test_id_1", "test_id_2"]}
+            response = self.session.post(f"{BASE_URL}/files/bulk-share", json=payload)
+            
+            if response.status_code in [401, 403]:
+                self.log_result("Bulk Share (Unauthorized)", True, "Correctly requires authentication")
+                return True
+            else:
+                self.log_result("Bulk Share (Unauthorized)", False, f"Expected 401/403, got HTTP {response.status_code}")
+                return False
+                
+        except Exception as e:
+            self.log_result("Bulk Share (Unauthorized)", False, f"Request failed: {str(e)}")
+            return False
+
     def run_all_tests(self):
         """Run all tests in sequence"""
         print("=" * 60)
@@ -870,6 +1198,16 @@ class TeleStoreAPITester:
             ("Bot Token (Invalid)", self.test_bot_token_invalid),
             ("Bot Token Format Validation", self.test_bot_token_format_validation),
             ("Valid Bot Token Format", self.test_valid_bot_token_format),
+            # Bulk Share Feature Tests
+            ("Bulk Share (Unauthorized)", self.test_bulk_share_unauthorized),
+            ("Bulk Share Empty List", self.test_bulk_share_empty_list),
+            ("Bulk Share Nonexistent Files", self.test_bulk_share_nonexistent_files),
+            ("Bulk Share Single File", self.test_bulk_share_single_file),
+            ("Bulk Share Multiple Files", self.test_bulk_share_multiple_files),
+            ("Get Shared Collection", self.test_get_shared_collection),
+            ("Get Shared Collection (Invalid Token)", self.test_get_shared_collection_invalid_token),
+            ("Get Collection File Download URL", self.test_get_collection_file_download_url),
+            ("Get Collection File Download URL (Invalid File)", self.test_get_collection_file_download_url_invalid_file),
         ]
         
         passed = 0
