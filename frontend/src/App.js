@@ -114,6 +114,16 @@ function App() {
               )
             }
           />
+          <Route
+            path="/trash"
+            element={
+              isAuthenticated ? (
+                <Trash user={user} onLogout={handleLogout} />
+              ) : (
+                <Navigate to="/auth" replace />
+              )
+            }
+          />
           <Route path="/share/:token" element={<SharedFile />} />
           <Route
             path="/"
