@@ -681,13 +681,20 @@ async def update_file(file_id: str, update: FileUpdate, current_user: User = Dep
 async def delete_file(file_id: str, permanent: bool = False, current_user: User = Depends(get_current_user)):
     """Delete file (move to trash or permanent)"""
     if permanent:
+        # Get file info before deleting
+        file = await db.files.find_one({"id": file_id, "user_id": current_user.id})
+        if not file:
+            raise HTTPException(status_code=404, detail="File not found")
+        
+        # Permanently delete file
+        await permanently_delete_file(file, current_user)
         result = await db.files.delete_one({"id": file_id, "user_id": current_user.id})
         if result.deleted_count == 0:
             raise HTTPException(status_code=404, detail="File not found")
     else:
         result = await db.files.update_one(
             {"id": file_id, "user_id": current_user.id},
-            {"$set": {"is_trashed": True}}
+            {"$set": {"is_trashed": True, "trashed_at": datetime.now(timezone.utc).isoformat()}}
         )
         if result.matched_count == 0:
             raise HTTPException(status_code=404, detail="File not found")
