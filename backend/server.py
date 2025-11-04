@@ -1176,6 +1176,164 @@ async def delete_person(person_id: str, current_user: User = Depends(get_current
     return {"success": True}
 
 
+# ========== HELPER FUNCTIONS FOR FILE DELETION ==========
+
+async def permanently_delete_file(file: dict, user: User):
+    """Permanently delete file from Telegram and thumbnail storage"""
+    try:
+        # Delete from Telegram
+        if user.telegram_bot_token and file.get('telegram_msg_id'):
+            import requests
+            try:
+                response = requests.post(
+                    f"https://api.telegram.org/bot{user.telegram_bot_token}/deleteMessage",
+                    json={
+                        "chat_id": user.telegram_channel_id,
+                        "message_id": file['telegram_msg_id']
+                    }
+                )
+                if response.json().get('ok'):
+                    logger.info(f"Deleted Telegram message {file['telegram_msg_id']}")
+                else:
+                    logger.warning(f"Failed to delete Telegram message: {response.json()}")
+            except Exception as e:
+                logger.error(f"Error deleting from Telegram: {str(e)}")
+        
+        # Delete from ImgBB (if applicable)
+        # Note: ImgBB doesn't provide a delete API for free tier
+        # Thumbnail will remain but won't be accessible from our app
+        
+        # Delete face data associated with this file
+        await db.faces.delete_many({"file_id": file['id']})
+        
+    except Exception as e:
+        logger.error(f"Error in permanently_delete_file: {str(e)}")
+
+
+async def cleanup_old_trash():
+    """Background task to cleanup files in trash for more than 10 days"""
+    try:
+        logger.info("Running trash cleanup task...")
+        cutoff_date = datetime.now(timezone.utc) - timedelta(days=10)
+        
+        # Find all files trashed more than 10 days ago
+        cursor = db.files.find({
+            "is_trashed": True,
+            "trashed_at": {"$ne": None, "$lt": cutoff_date.isoformat()}
+        })
+        
+        files_to_delete = await cursor.to_list(None)
+        
+        if files_to_delete:
+            logger.info(f"Found {len(files_to_delete)} files to permanently delete")
+            
+            for file in files_to_delete:
+                try:
+                    # Get user info
+                    user = await db.users.find_one({"id": file['user_id']})
+                    if user:
+                        user_obj = User(**user)
+                        await permanently_delete_file(file, user_obj)
+                    
+                    # Delete from database
+                    await db.files.delete_one({"id": file['id']})
+                    logger.info(f"Permanently deleted file {file['id']}")
+                except Exception as e:
+                    logger.error(f"Error deleting file {file['id']}: {str(e)}")
+        else:
+            logger.info("No files to cleanup")
+            
+    except Exception as e:
+        logger.error(f"Error in cleanup_old_trash: {str(e)}")
+
+
+# ========== BULK OPERATIONS ENDPOINTS ==========
+
+@api_router.post("/files/bulk-delete")
+async def bulk_delete_files(request: BulkDeleteRequest, current_user: User = Depends(get_current_user)):
+    """Move multiple files to trash"""
+    if not request.file_ids:
+        raise HTTPException(status_code=400, detail="No file IDs provided")
+    
+    try:
+        result = await db.files.update_many(
+            {"id": {"$in": request.file_ids}, "user_id": current_user.id},
+            {"$set": {"is_trashed": True, "trashed_at": datetime.now(timezone.utc).isoformat()}}
+        )
+        
+        return {
+            "success": True,
+            "deleted_count": result.modified_count
+        }
+    except Exception as e:
+        logger.error(f"Bulk delete error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@api_router.post("/files/bulk-share")
+async def bulk_share_files(request: BulkShareRequest, current_user: User = Depends(get_current_user)):
+    """Generate share links for multiple files"""
+    if not request.file_ids:
+        raise HTTPException(status_code=400, detail="No file IDs provided")
+    
+    try:
+        share_links = []
+        
+        for file_id in request.file_ids:
+            # Generate unique share token
+            share_token = str(uuid.uuid4())
+            
+            result = await db.files.update_one(
+                {"id": file_id, "user_id": current_user.id},
+                {"$set": {"is_public": True, "share_token": share_token}}
+            )
+            
+            if result.matched_count > 0:
+                file = await db.files.find_one({"id": file_id})
+                share_links.append({
+                    "file_id": file_id,
+                    "file_name": file.get('name', 'Unknown'),
+                    "share_token": share_token,
+                    "share_url": f"/share/{share_token}"
+                })
+        
+        return {
+            "success": True,
+            "share_links": share_links
+        }
+    except Exception as e:
+        logger.error(f"Bulk share error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@api_router.post("/files/trash/clear-all")
+async def clear_all_trash(current_user: User = Depends(get_current_user)):
+    """Permanently delete all files in trash"""
+    try:
+        # Get all trashed files
+        trashed_files = await db.files.find({
+            "user_id": current_user.id,
+            "is_trashed": True
+        }).to_list(None)
+        
+        deleted_count = 0
+        for file in trashed_files:
+            try:
+                await permanently_delete_file(file, current_user)
+                await db.files.delete_one({"id": file['id']})
+                deleted_count += 1
+            except Exception as e:
+                logger.error(f"Error deleting file {file['id']}: {str(e)}")
+        
+        return {
+            "success": True,
+            "deleted_count": deleted_count
+        }
+    except Exception as e:
+        logger.error(f"Clear trash error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # Include router
 app.include_router(api_router)
 
