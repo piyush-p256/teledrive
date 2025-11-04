@@ -1310,20 +1310,27 @@ async def bulk_share_files(request: BulkShareRequest, current_user: User = Depen
 async def clear_all_trash(current_user: User = Depends(get_current_user)):
     """Permanently delete all files in trash"""
     try:
+        logger.info(f"Clear trash requested by user {current_user.id}")
+        
         # Get all trashed files
         trashed_files = await db.files.find({
             "user_id": current_user.id,
             "is_trashed": True
         }).to_list(None)
         
+        logger.info(f"Found {len(trashed_files)} files in trash")
+        
         deleted_count = 0
         for file in trashed_files:
             try:
+                logger.info(f"Deleting file {file['id']}: {file.get('name', 'Unknown')}")
                 await permanently_delete_file(file, current_user)
                 await db.files.delete_one({"id": file['id']})
                 deleted_count += 1
             except Exception as e:
                 logger.error(f"Error deleting file {file['id']}: {str(e)}")
+        
+        logger.info(f"Successfully deleted {deleted_count} files")
         
         return {
             "success": True,
