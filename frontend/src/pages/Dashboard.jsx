@@ -63,6 +63,9 @@ export default function Dashboard({ user, onLogout }) {
   const [bulkShareDialog, setBulkShareDialog] = useState(false);
   const [shareLinks, setShareLinks] = useState([]);
   const fileInputRef = useRef(null);
+  const [galleryOpen, setGalleryOpen] = useState(false);
+  const [galleryPhotos, setGalleryPhotos] = useState([]);
+  const [galleryInitialIndex, setGalleryInitialIndex] = useState(0);
 
   // Load face-api.js models on mount
   useEffect(() => {
