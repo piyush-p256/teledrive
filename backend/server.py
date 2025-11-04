@@ -20,6 +20,7 @@ from telethon.tl.functions.messages import ExportChatInviteRequest
 import base64
 import io
 import qrcode
+import requests
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 
