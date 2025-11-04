@@ -1,8 +1,8 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import axios from 'axios';
 import { API } from '../App';
 import { Button } from './ui/button';
-import { X, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
+import { X, ChevronLeft, ChevronRight, Loader2, Play, Pause, SkipForward, SkipBack } from 'lucide-react';
 import { toast } from 'sonner';
 
 // Cache manager for Telegram image URLs
