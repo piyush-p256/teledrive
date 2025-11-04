@@ -20,6 +20,8 @@ from telethon.tl.functions.messages import ExportChatInviteRequest
 import base64
 import io
 import qrcode
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.triggers.interval import IntervalTrigger
 
 
 ROOT_DIR = Path(__file__).parent
