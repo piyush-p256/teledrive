@@ -265,15 +265,15 @@ export default function TrashPage({ user, onLogout }) {
               <AlertTriangle className="w-6 h-6" />
               <DialogTitle>Clear Trash?</DialogTitle>
             </div>
-            <DialogDescription className="pt-4">
-              <p className="mb-2">
-                This will <strong>permanently delete all {files.length} files</strong> in trash.
-              </p>
-              <p className="text-red-600 font-semibold">
-                Files will be deleted from Telegram too! This action cannot be undone.
-              </p>
-            </DialogDescription>
           </DialogHeader>
+          <div className="pt-4 space-y-2">
+            <div className="text-sm text-gray-600">
+              This will <strong>permanently delete all {files.length} files</strong> in trash.
+            </div>
+            <div className="text-sm text-red-600 font-semibold">
+              Files will be deleted from Telegram too! This action cannot be undone.
+            </div>
+          </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setClearTrashDialog(false)}>
               Cancel
