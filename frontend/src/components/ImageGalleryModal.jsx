@@ -249,6 +249,7 @@ export default function ImageGalleryModal({ photos, initialIndex = 0, onClose })
   }
 
   const currentPhoto = photos[currentIndex];
+  const isVideo = currentPhoto?.mime_type?.startsWith('video/');
 
   return (
     <div
