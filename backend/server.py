@@ -1280,35 +1280,61 @@ async def bulk_delete_files(request: BulkDeleteRequest, current_user: User = Dep
 
 @api_router.post("/files/bulk-share")
 async def bulk_share_files(request: BulkShareRequest, current_user: User = Depends(get_current_user)):
-    """Generate share links for multiple files"""
+    """Generate share link for multiple files as a collection"""
     if not request.file_ids:
         raise HTTPException(status_code=400, detail="No file IDs provided")
     
     try:
-        share_links = []
+        # Verify all files belong to the user
+        files = await db.files.find({
+            "id": {"$in": request.file_ids},
+            "user_id": current_user.id
+        }).to_list(None)
         
-        for file_id in request.file_ids:
-            # Generate unique share token
+        if len(files) != len(request.file_ids):
+            raise HTTPException(status_code=404, detail="Some files not found")
+        
+        # If only one file, use single file share
+        if len(request.file_ids) == 1:
             share_token = str(uuid.uuid4())
-            
-            result = await db.files.update_one(
-                {"id": file_id, "user_id": current_user.id},
+            await db.files.update_one(
+                {"id": request.file_ids[0], "user_id": current_user.id},
                 {"$set": {"is_public": True, "share_token": share_token}}
             )
-            
-            if result.matched_count > 0:
-                file = await db.files.find_one({"id": file_id})
-                share_links.append({
-                    "file_id": file_id,
-                    "file_name": file.get('name', 'Unknown'),
-                    "share_token": share_token,
-                    "share_url": f"/share/{share_token}"
-                })
+            return {
+                "success": True,
+                "share_type": "single",
+                "share_url": f"/share/{share_token}",
+                "share_token": share_token
+            }
+        
+        # For multiple files, create a shared collection
+        share_token = str(uuid.uuid4())
+        collection = SharedCollection(
+            user_id=current_user.id,
+            file_ids=request.file_ids,
+            share_token=share_token
+        )
+        
+        collection_dict = collection.model_dump()
+        collection_dict['created_at'] = collection_dict['created_at'].isoformat()
+        await db.shared_collections.insert_one(collection_dict)
+        
+        # Mark all files as public
+        await db.files.update_many(
+            {"id": {"$in": request.file_ids}, "user_id": current_user.id},
+            {"$set": {"is_public": True}}
+        )
         
         return {
             "success": True,
-            "share_links": share_links
+            "share_type": "collection",
+            "share_url": f"/share/collection/{share_token}",
+            "share_token": share_token,
+            "file_count": len(request.file_ids)
         }
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Bulk share error: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
