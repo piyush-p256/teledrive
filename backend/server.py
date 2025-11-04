@@ -706,7 +706,7 @@ async def restore_file(file_id: str, current_user: User = Depends(get_current_us
     """Restore file from trash"""
     result = await db.files.update_one(
         {"id": file_id, "user_id": current_user.id},
-        {"$set": {"is_trashed": False}}
+        {"$set": {"is_trashed": False, "trashed_at": None}}
     )
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="File not found")
