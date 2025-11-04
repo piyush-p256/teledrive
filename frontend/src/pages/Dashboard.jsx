@@ -702,7 +702,7 @@ export default function Dashboard({ user, onLogout }) {
                   {filteredFiles.map((file) => (
                     <Card
                       key={file.id}
-                      className="overflow-hidden thumbnail-hover group"
+                      className={`overflow-hidden thumbnail-hover group ${selectedItems.includes(file.id) ? 'ring-2 ring-indigo-500' : ''}`}
                       data-testid={`file-${file.id}`}
                     >
                       <div className="aspect-square bg-gray-100 flex items-center justify-center relative">
@@ -715,6 +715,14 @@ export default function Dashboard({ user, onLogout }) {
                         ) : (
                           <div className="text-gray-400">{getFileIcon(file.mime_type)}</div>
                         )}
+                        <div className="absolute top-2 left-2">
+                          <Checkbox
+                            checked={selectedItems.includes(file.id)}
+                            onCheckedChange={() => toggleSelectItem(file.id)}
+                            className="bg-white border-2"
+                            data-testid={`file-checkbox-${file.id}`}
+                          />
+                        </div>
                         <div className="absolute top-2 right-2">
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
