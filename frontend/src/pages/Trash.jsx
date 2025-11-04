@@ -80,12 +80,16 @@ export default function TrashPage({ user, onLogout }) {
 
   const handleClearAllTrash = async () => {
     try {
+      console.log('Clearing trash...');
       const response = await axios.post(`${API}/files/trash/clear-all`);
+      console.log('Clear trash response:', response.data);
       toast.success(`${response.data.deleted_count} files permanently deleted`);
       setClearTrashDialog(false);
       loadTrashFiles();
     } catch (error) {
-      toast.error('Failed to clear trash');
+      console.error('Clear trash error:', error);
+      const errorMsg = error.response?.data?.detail || error.message || 'Failed to clear trash';
+      toast.error(errorMsg);
     }
   };
 
