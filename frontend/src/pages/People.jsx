@@ -109,6 +109,12 @@ export default function People({ user, onLogout }) {
     return person.name || `Person ${index + 1}`;
   };
 
+  const handlePhotoClick = (photoIndex) => {
+    setGalleryPhotos(personPhotos);
+    setGalleryInitialIndex(photoIndex);
+    setGalleryOpen(true);
+  };
+
   const formatFileSize = (bytes) => {
     if (bytes < 1024) return bytes + ' B';
     if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
