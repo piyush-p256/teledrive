@@ -23,6 +23,7 @@ import {
   LogOut,
   X,
 } from 'lucide-react';
+import ImageGalleryModal from '../components/ImageGalleryModal';
 
 export default function People({ user, onLogout }) {
   const navigate = useNavigate();
