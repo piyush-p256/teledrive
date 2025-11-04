@@ -735,9 +735,9 @@ export default function Dashboard({ user, onLogout }) {
                       <div 
                         className="aspect-square bg-gray-100 flex items-center justify-center relative cursor-pointer"
                         onClick={() => {
-                          // Only open gallery for images
-                          if (file.mime_type && file.mime_type.startsWith('image/')) {
-                            handleImageClick(file);
+                          // Open gallery for images and videos
+                          if (file.mime_type && (file.mime_type.startsWith('image/') || file.mime_type.startsWith('video/'))) {
+                            handleMediaClick(file);
                           }
                         }}
                       >
