@@ -35,6 +35,9 @@ export default function People({ user, onLogout }) {
   const [renameDialog, setRenameDialog] = useState(false);
   const [renamePerson, setRenamePerson] = useState(null);
   const [newName, setNewName] = useState('');
+  const [galleryOpen, setGalleryOpen] = useState(false);
+  const [galleryPhotos, setGalleryPhotos] = useState([]);
+  const [galleryInitialIndex, setGalleryInitialIndex] = useState(0);
 
   useEffect(() => {
     loadPeople();
