@@ -88,6 +88,14 @@ export default function ImageGalleryModal({ photos, initialIndex = 0, onClose })
   const [imageUrl, setImageUrl] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  
+  // Video player state
+  const videoRef = useRef(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [showControls, setShowControls] = useState(true);
+  const controlsTimeoutRef = useRef(null);
 
   // Clean up expired cache on mount
   useEffect(() => {
