@@ -730,7 +730,15 @@ export default function Dashboard({ user, onLogout }) {
                       className={`overflow-hidden thumbnail-hover group ${selectedItems.includes(file.id) ? 'ring-2 ring-indigo-500' : ''}`}
                       data-testid={`file-${file.id}`}
                     >
-                      <div className="aspect-square bg-gray-100 flex items-center justify-center relative">
+                      <div 
+                        className="aspect-square bg-gray-100 flex items-center justify-center relative cursor-pointer"
+                        onClick={() => {
+                          // Only open gallery for images
+                          if (file.mime_type && file.mime_type.startsWith('image/')) {
+                            handleImageClick(file);
+                          }
+                        }}
+                      >
                         {file.thumbnail_url ? (
                           <img
                             src={file.thumbnail_url}
