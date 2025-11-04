@@ -501,6 +501,19 @@ export default function Dashboard({ user, onLogout }) {
     f.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  // Filter only image files for gallery
+  const imageFiles = filteredFiles.filter(f => f.mime_type && f.mime_type.startsWith('image/'));
+
+  const handleImageClick = (file) => {
+    // Find the index of this file in imageFiles array
+    const imageIndex = imageFiles.findIndex(f => f.id === file.id);
+    if (imageIndex !== -1) {
+      setGalleryPhotos(imageFiles);
+      setGalleryInitialIndex(imageIndex);
+      setGalleryOpen(true);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
       {/* Header */}
