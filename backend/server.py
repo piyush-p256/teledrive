@@ -1184,7 +1184,6 @@ async def permanently_delete_file(file: dict, user: User):
     try:
         # Delete from Telegram
         if user.telegram_bot_token and file.get('telegram_msg_id'):
-            import requests
             try:
                 response = requests.post(
                     f"https://api.telegram.org/bot{user.telegram_bot_token}/deleteMessage",
