@@ -57,6 +57,9 @@ export default function Dashboard({ user, onLogout }) {
   const [renameItem, setRenameItem] = useState(null);
   const [renameName, setRenameName] = useState('');
   const [modelsLoaded, setModelsLoaded] = useState(false);
+  const [selectedItems, setSelectedItems] = useState([]);
+  const [bulkShareDialog, setBulkShareDialog] = useState(false);
+  const [shareLinks, setShareLinks] = useState([]);
   const fileInputRef = useRef(null);
 
   // Load face-api.js models on mount
