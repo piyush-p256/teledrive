@@ -5,13 +5,96 @@ import { Button } from './ui/button';
 import { X, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
+// Cache manager for Telegram image URLs
+const IMAGE_CACHE_KEY = 'telegram_image_cache';
+const CACHE_DURATION = 60 * 60 * 1000; // 1 hour in milliseconds
+
+const ImageCache = {
+  // Get cached URL if not expired
+  get(photoId) {
+    try {
+      const cache = JSON.parse(localStorage.getItem(IMAGE_CACHE_KEY) || '{}');
+      const cached = cache[photoId];
+      
+      if (!cached) return null;
+      
+      const now = Date.now();
+      if (now - cached.timestamp > CACHE_DURATION) {
+        // Cache expired, remove it
+        this.remove(photoId);
+        return null;
+      }
+      
+      console.log(`✅ Using cached URL for image ${photoId}`);
+      return cached.url;
+    } catch (error) {
+      console.error('Cache read error:', error);
+      return null;
+    }
+  },
+
+  // Store URL in cache with timestamp
+  set(photoId, url) {
+    try {
+      const cache = JSON.parse(localStorage.getItem(IMAGE_CACHE_KEY) || '{}');
+      cache[photoId] = {
+        url: url,
+        timestamp: Date.now()
+      };
+      localStorage.setItem(IMAGE_CACHE_KEY, JSON.stringify(cache));
+      console.log(`💾 Cached URL for image ${photoId}`);
+    } catch (error) {
+      console.error('Cache write error:', error);
+    }
+  },
+
+  // Remove specific cached entry
+  remove(photoId) {
+    try {
+      const cache = JSON.parse(localStorage.getItem(IMAGE_CACHE_KEY) || '{}');
+      delete cache[photoId];
+      localStorage.setItem(IMAGE_CACHE_KEY, JSON.stringify(cache));
+    } catch (error) {
+      console.error('Cache remove error:', error);
+    }
+  },
+
+  // Clean up expired entries
+  cleanup() {
+    try {
+      const cache = JSON.parse(localStorage.getItem(IMAGE_CACHE_KEY) || '{}');
+      const now = Date.now();
+      let cleaned = false;
+
+      Object.keys(cache).forEach(photoId => {
+        if (now - cache[photoId].timestamp > CACHE_DURATION) {
+          delete cache[photoId];
+          cleaned = true;
+        }
+      });
+
+      if (cleaned) {
+        localStorage.setItem(IMAGE_CACHE_KEY, JSON.stringify(cache));
+        console.log('🧹 Cleaned expired cache entries');
+      }
+    } catch (error) {
+      console.error('Cache cleanup error:', error);
+    }
+  }
+};
+
 export default function ImageGalleryModal({ photos, initialIndex = 0, onClose }) {
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const [imageUrl, setImageUrl] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  // Load image from Telegram
+  // Clean up expired cache on mount
+  useEffect(() => {
+    ImageCache.cleanup();
+  }, []);
+
+  // Load image from cache or Telegram
   const loadImage = useCallback(async (photoId) => {
     if (!photoId) return;
     
@@ -19,9 +102,22 @@ export default function ImageGalleryModal({ photos, initialIndex = 0, onClose })
     setError(null);
     setImageUrl(null);
 
+    // Check cache first
+    const cachedUrl = ImageCache.get(photoId);
+    if (cachedUrl) {
+      setImageUrl(cachedUrl);
+      setLoading(false);
+      return;
+    }
+
+    // Fetch from Telegram if not cached
     try {
       const response = await axios.get(`${API}/files/${photoId}/download-url`);
-      setImageUrl(response.data.download_url);
+      const url = response.data.download_url;
+      
+      // Store in cache
+      ImageCache.set(photoId, url);
+      setImageUrl(url);
     } catch (err) {
       console.error('Failed to load image:', err);
       setError('Failed to load image from Telegram');
