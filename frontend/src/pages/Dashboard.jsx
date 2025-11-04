@@ -453,7 +453,23 @@ export default function Dashboard({ user, onLogout }) {
       const response = await axios.post(`${API}/files/bulk-share`, {
         file_ids: selectedItems
       });
-      setShareLinks(response.data.share_links);
+      
+      // Handle new response format
+      if (response.data.share_type === 'collection') {
+        // Multiple files - show single collection URL
+        setShareLinks([{
+          share_url: response.data.share_url,
+          share_type: 'collection',
+          file_count: response.data.file_count
+        }]);
+      } else {
+        // Single file - show single file URL
+        setShareLinks([{
+          share_url: response.data.share_url,
+          share_type: 'single'
+        }]);
+      }
+      
       setBulkShareDialog(true);
     } catch (error) {
       toast.error('Failed to generate share links');
