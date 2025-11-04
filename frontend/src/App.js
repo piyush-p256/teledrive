@@ -126,6 +126,7 @@ function App() {
             }
           />
           <Route path="/share/:token" element={<SharedFile />} />
+          <Route path="/share/collection/:token" element={<SharedCollection />} />
           <Route
             path="/"
             element={
