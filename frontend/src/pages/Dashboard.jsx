@@ -501,15 +501,17 @@ export default function Dashboard({ user, onLogout }) {
     f.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  // Filter only image files for gallery
-  const imageFiles = filteredFiles.filter(f => f.mime_type && f.mime_type.startsWith('image/'));
+  // Filter image and video files for gallery
+  const mediaFiles = filteredFiles.filter(f => 
+    f.mime_type && (f.mime_type.startsWith('image/') || f.mime_type.startsWith('video/'))
+  );
 
-  const handleImageClick = (file) => {
-    // Find the index of this file in imageFiles array
-    const imageIndex = imageFiles.findIndex(f => f.id === file.id);
-    if (imageIndex !== -1) {
-      setGalleryPhotos(imageFiles);
-      setGalleryInitialIndex(imageIndex);
+  const handleMediaClick = (file) => {
+    // Find the index of this file in mediaFiles array
+    const mediaIndex = mediaFiles.findIndex(f => f.id === file.id);
+    if (mediaIndex !== -1) {
+      setGalleryPhotos(mediaFiles);
+      setGalleryInitialIndex(mediaIndex);
       setGalleryOpen(true);
     }
   };
