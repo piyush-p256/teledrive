@@ -476,14 +476,6 @@ export default function Dashboard({ user, onLogout }) {
     }
   };
 
-  const copyAllShareLinks = () => {
-    const links = shareLinks.map(link => 
-      `${link.file_name}: ${window.location.origin}${link.share_url}`
-    ).join('\n');
-    navigator.clipboard.writeText(links);
-    toast.success('All share links copied to clipboard!');
-  };
-
   const getFileIcon = (mimeType) => {
     if (mimeType.startsWith('image/')) return <ImageIcon className="w-4 h-4" />;
     if (mimeType.startsWith('video/')) return <Video className="w-4 h-4" />;
