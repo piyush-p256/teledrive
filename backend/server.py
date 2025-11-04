@@ -848,6 +848,87 @@ async def get_shared_file_download_url(share_token: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# ========== SHARED COLLECTION ROUTES ==========
+
+@api_router.get("/share/collection/{share_token}")
+async def get_shared_collection(share_token: str):
+    """Get shared collection with all files"""
+    collection = await db.shared_collections.find_one(
+        {"share_token": share_token}, 
+        {"_id": 0}
+    )
+    if not collection:
+        raise HTTPException(status_code=404, detail="Collection not found")
+    
+    # Get all files in the collection
+    files = await db.files.find(
+        {"id": {"$in": collection['file_ids']}, "is_public": True},
+        {"_id": 0}
+    ).to_list(None)
+    
+    # Parse dates for serialization
+    for file in files:
+        if isinstance(file.get('created_at'), str):
+            file['created_at'] = datetime.fromisoformat(file['created_at'])
+    
+    return {
+        "collection": collection,
+        "files": files,
+        "file_count": len(files)
+    }
+
+@api_router.get("/share/collection/{share_token}/file/{file_id}/download-url")
+async def get_collection_file_download_url(share_token: str, file_id: str):
+    """Get download URL for a specific file in a shared collection"""
+    # Verify collection exists and contains this file
+    collection = await db.shared_collections.find_one(
+        {"share_token": share_token},
+        {"_id": 0}
+    )
+    if not collection:
+        raise HTTPException(status_code=404, detail="Collection not found")
+    
+    if file_id not in collection['file_ids']:
+        raise HTTPException(status_code=404, detail="File not in this collection")
+    
+    # Get the file
+    file = await db.files.find_one(
+        {"id": file_id, "is_public": True},
+        {"_id": 0}
+    )
+    if not file:
+        raise HTTPException(status_code=404, detail="File not found")
+    
+    # Get user's bot token
+    user = await db.users.find_one({"id": file['user_id']}, {"_id": 0})
+    if not user or not user.get('telegram_bot_token'):
+        raise HTTPException(status_code=400, detail="Bot token not configured")
+    
+    try:
+        import requests
+        if file.get('telegram_file_id'):
+            response = requests.get(
+                f"https://api.telegram.org/bot{user['telegram_bot_token']}/getFile",
+                params={"file_id": file['telegram_file_id']}
+            )
+            
+            data = response.json()
+            if data.get('ok'):
+                file_path = data['result']['file_path']
+                download_url = f"https://api.telegram.org/file/bot{user['telegram_bot_token']}/{file_path}"
+                return {"download_url": download_url, "file_name": file.get('name', 'file')}
+        
+        raise HTTPException(
+            status_code=400, 
+            detail="Unable to generate download link."
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Collection file download error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # ========== FOLDER ROUTES ==========
 
 @api_router.post("/folders", response_model=Folder)
