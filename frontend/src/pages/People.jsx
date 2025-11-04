@@ -284,10 +284,11 @@ export default function People({ user, onLogout }) {
                     </div>
                   ) : (
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                      {personPhotos.map((photo) => (
+                      {personPhotos.map((photo, index) => (
                         <Card
                           key={photo.id}
                           className="overflow-hidden cursor-pointer hover:shadow-lg transition-shadow"
+                          onClick={() => handlePhotoClick(index)}
                         >
                           <div className="aspect-square bg-gray-100 flex items-center justify-center">
                             {photo.thumbnail_url ? (
