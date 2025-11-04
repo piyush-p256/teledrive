@@ -135,10 +135,14 @@ export default function ImageGalleryModal({ photos, initialIndex = 0, onClose })
     }
   }, []);
 
-  // Load current image when index changes
+  // Load current media when index changes
   useEffect(() => {
     if (photos && photos[currentIndex]) {
       loadImage(photos[currentIndex].id);
+      // Reset video state when switching files
+      setIsPlaying(false);
+      setCurrentTime(0);
+      setDuration(0);
     }
   }, [currentIndex, photos, loadImage]);
 
