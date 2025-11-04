@@ -445,10 +445,8 @@ metadata:
 
 test_plan:
   current_focus:
-    - "Test face detection during image upload"
-    - "Test People page displays detected faces correctly"
-    - "Test person naming and photo grouping"
-    - "Verify face descriptors stored in database"
+    - "Bulk share feature testing completed"
+    - "Face recognition backend testing completed"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
