@@ -413,6 +413,60 @@ export default function Dashboard({ user, onLogout }) {
     }
   };
 
+  const toggleSelectItem = (itemId) => {
+    setSelectedItems(prev => 
+      prev.includes(itemId) 
+        ? prev.filter(id => id !== itemId)
+        : [...prev, itemId]
+    );
+  };
+
+  const selectAllItems = () => {
+    const allFileIds = filteredFiles.map(f => f.id);
+    setSelectedItems(allFileIds);
+  };
+
+  const deselectAll = () => {
+    setSelectedItems([]);
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedItems.length === 0) return;
+    
+    try {
+      const response = await axios.post(`${API}/files/bulk-delete`, {
+        file_ids: selectedItems
+      });
+      toast.success(`${response.data.deleted_count} items moved to trash`);
+      setSelectedItems([]);
+      loadData();
+    } catch (error) {
+      toast.error('Failed to delete items');
+    }
+  };
+
+  const handleBulkShare = async () => {
+    if (selectedItems.length === 0) return;
+    
+    try {
+      const response = await axios.post(`${API}/files/bulk-share`, {
+        file_ids: selectedItems
+      });
+      setShareLinks(response.data.share_links);
+      setBulkShareDialog(true);
+    } catch (error) {
+      toast.error('Failed to generate share links');
+    }
+  };
+
+  const copyAllShareLinks = () => {
+    const links = shareLinks.map(link => 
+      `${link.file_name}: ${window.location.origin}${link.share_url}`
+    ).join('\n');
+    navigator.clipboard.writeText(links);
+    toast.success('All share links copied to clipboard!');
+  };
+
   const getFileIcon = (mimeType) => {
     if (mimeType.startsWith('image/')) return <ImageIcon className="w-4 h-4" />;
     if (mimeType.startsWith('video/')) return <Video className="w-4 h-4" />;
