@@ -462,6 +462,16 @@ export default function Dashboard({ user, onLogout }) {
               <Button
                 variant="ghost"
                 size="icon"
+                onClick={() => navigate('/trash')}
+                title="Trash"
+                data-testid="trash-button"
+              >
+                <Trash2 className="w-5 h-5" />
+              </Button>
+
+              <Button
+                variant="ghost"
+                size="icon"
                 onClick={() => navigate('/people')}
                 title="View People"
               >
