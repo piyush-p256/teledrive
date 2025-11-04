@@ -221,6 +221,36 @@ backend:
         agent: "main"
         comment: "Added worker_url field to User model (line 69) and ApiKeysUpdate model (line 128) to store Cloudflare worker URL"
 
+  - task: "Implement bulk share feature for multiple files"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Implemented POST /api/files/bulk-share endpoint (lines 1362-1421) that creates SharedCollection for multiple files or single file share for backward compatibility. Added SharedCollection model (lines 201-208) to store collection metadata."
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: Bulk share feature working perfectly. Single file returns share_type='single', multiple files create collection with share_type='collection'. Proper error handling for empty lists and non-existent files. Authentication required correctly."
+
+  - task: "Implement shared collection access endpoints"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Implemented GET /api/share/collection/{token} endpoint (lines 853-878) to retrieve collection with all files, and GET /api/share/collection/{token}/file/{file_id}/download-url endpoint (lines 880-929) for individual file downloads from collections."
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: Shared collection endpoints working correctly. Collection retrieval returns proper structure with files array and metadata. Individual file download URLs work with proper validation. Error handling for invalid tokens and files not in collection working properly."
+
   - task: "Update User model to store all Telegram credentials"
     implemented: true
     working: true
