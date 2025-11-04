@@ -358,6 +358,15 @@ export default function People({ user, onLogout }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Image Gallery Modal */}
+      {galleryOpen && (
+        <ImageGalleryModal
+          photos={galleryPhotos}
+          initialIndex={galleryInitialIndex}
+          onClose={() => setGalleryOpen(false)}
+        />
+      )}
     </div>
   );
 }
