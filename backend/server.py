@@ -191,6 +191,12 @@ class PersonMerge(BaseModel):
     person_ids: List[str]  # List of person IDs to merge
     target_person_id: str  # The person to merge into
 
+class BulkDeleteRequest(BaseModel):
+    file_ids: List[str]
+
+class BulkShareRequest(BaseModel):
+    file_ids: List[str]
+
 
 # ========== AUTH HELPERS ==========
 
