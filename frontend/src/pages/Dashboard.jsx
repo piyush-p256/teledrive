@@ -589,6 +589,45 @@ export default function Dashboard({ user, onLogout }) {
           </Button>
         </div>
 
+        {/* Bulk Actions Bar */}
+        {selectedItems.length > 0 && (
+          <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4 mb-6 flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <span className="text-sm font-medium text-indigo-900">
+                {selectedItems.length} {selectedItems.length === 1 ? 'item' : 'items'} selected
+              </span>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={deselectAll}
+                className="text-indigo-600"
+              >
+                Clear Selection
+              </Button>
+            </div>
+            <div className="flex items-center space-x-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleBulkShare}
+                data-testid="bulk-share-button"
+              >
+                <Share2 className="w-4 h-4 mr-2" />
+                Share Selected
+              </Button>
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={handleBulkDelete}
+                data-testid="bulk-delete-button"
+              >
+                <Trash2 className="w-4 h-4 mr-2" />
+                Delete Selected
+              </Button>
+            </div>
+          </div>
+        )}
+
         {/* Files Grid */}
         {loading ? (
           <div className="flex items-center justify-center h-64">
