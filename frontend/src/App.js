@@ -6,6 +6,7 @@ import Auth from './pages/Auth';
 import Dashboard from './pages/Dashboard';
 import Settings from './pages/Settings';
 import SharedFile from './pages/SharedFile';
+import SharedCollection from './pages/SharedCollection';
 import People from './pages/People';
 import Trash from './pages/Trash';
 import { Toaster } from './components/ui/sonner';
