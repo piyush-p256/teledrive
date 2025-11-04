@@ -173,11 +173,14 @@ backend:
     file: "/app/backend/server.py"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: true
         agent: "main"
         comment: "Implemented POST /api/faces to store face detections with auto-grouping (lines 895-927), GET /api/people to list detected people (lines 972-981), PUT /api/people/{person_id}/name to update names (lines 984-994), GET /api/people/{person_id}/photos to get all photos with that person (lines 997-1018), POST /api/people/merge to merge duplicate people (lines 1021-1049), DELETE /api/people/{person_id} to delete person (lines 1052-1067)"
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: All face recognition endpoints working correctly. Tested face data storage, people listing, name updates, photo retrieval, people merging, and person deletion. All authentication and error handling working properly."
 
   - task: "Implement face matching algorithm using Euclidean distance"
     implemented: true
