@@ -934,6 +934,15 @@ export default function Dashboard({ user, onLogout }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Image Gallery Modal */}
+      {galleryOpen && (
+        <ImageGalleryModal
+          photos={galleryPhotos}
+          initialIndex={galleryInitialIndex}
+          onClose={() => setGalleryOpen(false)}
+        />
+      )}
     </div>
   );
 }
