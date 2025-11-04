@@ -1345,9 +1345,32 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Initialize background scheduler for trash cleanup
+scheduler = AsyncIOScheduler()
+
+@app.on_event("startup")
+async def startup_scheduler():
+    """Start background scheduler for trash cleanup"""
+    try:
+        # Run cleanup every hour
+        scheduler.add_job(
+            cleanup_old_trash,
+            trigger=IntervalTrigger(hours=1),
+            id='trash_cleanup',
+            name='Clean up old trash files',
+            replace_existing=True
+        )
+        scheduler.start()
+        logger.info("Background scheduler started - trash cleanup will run every hour")
+    except Exception as e:
+        logger.error(f"Failed to start scheduler: {str(e)}")
+
 @app.on_event("shutdown")
 async def shutdown_db_client():
     client.close()
+    # Shutdown scheduler
+    if scheduler.running:
+        scheduler.shutdown()
     # Cleanup telegram clients
     for session_data in telegram_clients.values():
         try:
