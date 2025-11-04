@@ -95,6 +95,7 @@ class FileMetadata(BaseModel):
     thumbnail_provider: Optional[str] = None  # 'cloudinary' or 'imgbb'
     folder_id: Optional[str] = None
     is_trashed: bool = False
+    trashed_at: Optional[datetime] = None
     is_public: bool = False
     share_token: Optional[str] = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
