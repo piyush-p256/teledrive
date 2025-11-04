@@ -43,6 +43,7 @@ import {
   Users,
 } from 'lucide-react';
 import * as faceapi from 'face-api.js';
+import ImageGalleryModal from '../components/ImageGalleryModal';
 
 export default function Dashboard({ user, onLogout }) {
   const navigate = useNavigate();
