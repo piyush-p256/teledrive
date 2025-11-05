@@ -159,35 +159,23 @@ export default function Dashboard({ user, onLogout }) {
       }
 
       // Upload to Telegram via worker
+      // Using axios instead of fetch to avoid rrweb-recorder clone issues
+      // rrweb wraps fetch() but not XMLHttpRequest (which axios uses)
       const formData = new FormData();
       formData.append('file', file);
       formData.append('authToken', localStorage.getItem('token'));
 
       let workerData;
       try {
-        const workerResponse = await fetch(user.worker_url, {
-          method: 'POST',
-          body: formData,
+        const workerResponse = await axios.post(user.worker_url, formData, {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
+          // Don't throw on any status code, we'll handle errors manually
+          validateStatus: () => true,
         });
 
-        // Read response as text first to avoid rrweb clone issues
-        // The rrweb-recorder library tries to clone responses, which can fail
-        // Reading as text consumes the body only once and avoids the clone error
-        let responseText;
-        try {
-          responseText = await workerResponse.text();
-        } catch (textError) {
-          console.error('Failed to read worker response:', textError);
-          throw new Error('Worker returned unreadable response');
-        }
-
-        // Parse the JSON manually
-        try {
-          workerData = JSON.parse(responseText);
-        } catch (jsonError) {
-          console.error('Failed to parse worker response JSON:', responseText);
-          throw new Error(`Worker returned invalid JSON (status: ${workerResponse.status})`);
-        }
+        workerData = workerResponse.data;
         
         // Check if the upload was successful
         if (!workerData.success) {
@@ -197,10 +185,12 @@ export default function Dashboard({ user, onLogout }) {
         if (!workerData.messageId) {
           throw new Error('Failed to get message ID from worker');
         }
-      } catch (fetchError) {
+      } catch (uploadError) {
         // Log the error details
-        console.error('Worker upload error details:', fetchError);
-        throw fetchError;
+        console.error('Worker upload error details:', uploadError);
+        // Provide user-friendly error message
+        const errorMsg = uploadError.response?.data?.error || uploadError.message || 'Worker upload failed';
+        throw new Error(errorMsg);
       }
 
       // Create file metadata
