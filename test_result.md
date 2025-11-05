@@ -105,14 +105,18 @@
 user_problem_statement: |
   Previous: Fixed file upload issues in TeleDrive and added face recognition feature
   
-  Current Issue: Face recognition accuracy improvements needed
+  Current Issue (RESOLVED): Video upload error fix and video player implementation
   
   Problems Reported:
-  1. ✅ 4 faces detected but only 3 profiles created → FIXED with stricter matching
-  2. ✅ One person's solo photo in wrong section → FIXED with better algorithms
-  3. ❌ Person with glasses/spectacles not being recognized properly
-     - Same person with glasses creates multiple profiles
-     - Glasses significantly alter face descriptors
+  1. ✅ Video uploads to Telegram but shows error on frontend
+     - Error: "Failed to execute 'clone' on 'Response': Response body is already used"
+     - Root cause: Response body being consumed incorrectly
+     - FIXED: Changed response handling order in uploadFile function
+  
+  2. ✅ Need video player in gallery view with standard controls
+     - IMPLEMENTED: Added native browser controls to video player
+     - Videos now play with standard HTML5 controls
+     - Custom overlay controls also available
   
   Latest Improvements for Glasses/Accessories:
   
