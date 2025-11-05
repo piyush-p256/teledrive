@@ -112,7 +112,19 @@ def upload_file():
             raise Exception(telegram_result.get('description', 'Telegram upload failed'))
         
         message_id = telegram_result['result']['message_id']
-        file_id = telegram_result['result']['document']['file_id']
+        
+        # Telegram returns different properties based on file type
+        # Videos: result['video'], Documents: result['document'], Audio: result['audio'], Photos: result['photo']
+        result = telegram_result['result']
+        file_id = (
+            result.get('document', {}).get('file_id') or
+            result.get('video', {}).get('file_id') or
+            result.get('audio', {}).get('file_id') or
+            (result.get('photo', [{}])[0].get('file_id') if result.get('photo') else None)
+        )
+        
+        if not file_id:
+            raise Exception('Failed to get file_id from Telegram response')
         
         # Notify backend
         requests.post(
