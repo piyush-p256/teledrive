@@ -756,6 +756,67 @@ agent_communication:
       
       The system now intelligently adapts to appearance variations!
 
+  - agent: "main"
+    message: |
+      🔧 VIDEO UPLOAD ERROR FIX: Resolved rrweb Response Clone Issue
+      
+      User Report:
+      - Video uploads to Telegram successfully ✅
+      - But console shows error: "TypeError: Failed to execute 'clone' on 'Response': Response body is already used"
+      - Worker returns 500 Internal Server Error (even though upload succeeds)
+      
+      Root Cause Analysis:
+      1. The rrweb-recorder library (Emergent's session recording) intercepts all fetch calls
+      2. It tries to clone the Response object to record it for session replay
+      3. Response.clone() fails when called on certain responses from Cloudflare Workers
+      4. This causes the entire fetch to throw an error, even though the upload succeeded
+      5. The frontend catches this error and shows it to the user
+      
+      Technical Details:
+      - Error location: rrweb-recorder-20250919-1.js:377 (fetch wrapper)
+      - The worker successfully uploads to Telegram (video appears in channel)
+      - But the response cloning fails, making it seem like the upload failed
+      - Previous fix (using workerResponse.json()) still had the clone issue
+      
+      Solution Implemented:
+      Changed response handling in Dashboard.jsx uploadFile function (lines 161-197):
+      
+      OLD APPROACH:
+      ```javascript
+      const workerResponse = await fetch(user.worker_url, {...});
+      workerData = await workerResponse.json(); // <-- rrweb tries to clone here
+      ```
+      
+      NEW APPROACH:
+      ```javascript
+      const workerResponse = await fetch(user.worker_url, {...});
+      const responseText = await workerResponse.text(); // <-- Read as text first
+      workerData = JSON.parse(responseText); // <-- Parse manually
+      ```
+      
+      Why This Works:
+      1. Reading as text() consumes the response body only once
+      2. No multiple reads or clones of the Response object
+      3. rrweb can still intercept the fetch, but doesn't need to clone the body
+      4. We manually parse JSON instead of using .json() method
+      5. Maintains all error handling (network errors, JSON parse errors, worker errors)
+      
+      Additional Improvements:
+      - Better error messages showing response text if JSON parsing fails
+      - Proper handling of both success and error responses from worker
+      - Comprehensive try-catch blocks for each failure point
+      
+      Expected Results After Fix:
+      ✅ Video uploads to Telegram → Success message shown
+      ✅ No console errors about Response cloning
+      ✅ Proper error handling if upload genuinely fails
+      ✅ Works with rrweb session recording enabled
+      
+      Note: The "Error loading video for thumbnail" is cosmetic and doesn't affect uploads.
+      Video thumbnails fail gracefully and return null if generation fails.
+      
+      Ready for user testing!
+
   - agent: "testing"
     message: |
       🎯 BULK SHARE FEATURE TESTING COMPLETE - ALL TESTS PASSED!
