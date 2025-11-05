@@ -280,6 +280,54 @@ backend:
         comment: "Enhanced endpoint at line 505-521 to return bot_token, channel_id, telegram_session, telegram_api_id, telegram_api_hash, user_id, and backend_url. Requires user authentication via JWT token."
 
 frontend:
+  - task: "Fix video upload Response clone error"
+    implemented: true
+    working: true
+    file: "/app/frontend/src/pages/Dashboard.jsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "FIXED: Changed response handling in uploadFile function (lines 123-203). Now reads response body immediately with await workerResponse.json() before checking workerResponse.ok. This prevents 'Response body is already used' error that occurred with video uploads. Added proper error handling for JSON parsing."
+
+  - task: "Add video thumbnail generation"
+    implemented: true
+    working: true
+    file: "/app/frontend/src/pages/Dashboard.jsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "IMPLEMENTED: Added generateVideoThumbnail function (after line 323) that extracts first frame from video as thumbnail. Uses HTML5 video element to load video, seeks to 1 second or 10% duration, captures frame to canvas, and generates JPEG thumbnail. Handles errors gracefully by returning null. Video thumbnails are now generated and uploaded to ImgBB/Cloudinary same as image thumbnails."
+
+  - task: "Add video player with standard controls in gallery"
+    implemented: true
+    working: true
+    file: "/app/frontend/src/components/ImageGalleryModal.jsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "IMPLEMENTED: Added 'controls' attribute to video element in ImageGalleryModal (line 338). Videos now display with native browser controls (play/pause, timeline, volume, fullscreen). Custom overlay controls remain for enhanced UX. Video player supports keyboard shortcuts (Space for play/pause, Arrow keys for navigation)."
+
+  - task: "Add video icon overlay on thumbnails"
+    implemented: true
+    working: true
+    file: "/app/frontend/src/pages/Dashboard.jsx"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "IMPLEMENTED: Added video icon overlay on video thumbnails in Dashboard grid (lines 822-840). When a file is a video, displays a white play button icon in center of thumbnail with semi-transparent dark background. Makes it visually clear which items are videos vs images."
+
   - task: "Install and configure face-api.js for client-side face detection"
     implemented: true
     working: true
