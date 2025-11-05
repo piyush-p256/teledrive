@@ -481,6 +481,9 @@ workers:
       - working: "NA"
         agent: "main"
         comment: "Python implementation with same caching strategy. Uses requests library to fetch credentials. Cache stored in module-level dictionary."
+      - working: "NA"
+        agent: "main"
+        comment: "FIXED VIDEO UPLOAD: Added support for different Telegram file types. Python version checks result.get('document', {}).get('file_id') or result.get('video', {}).get('file_id') etc."
 
 documentation:
   - task: "Update worker templates README"
