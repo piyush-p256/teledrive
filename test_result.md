@@ -840,6 +840,77 @@ agent_communication:
       
       Ready for user testing!
 
+  - agent: "main"
+    message: |
+      🎯 VIDEO UPLOAD WORKER FIX: Telegram API File Type Handling
+      
+      After Switching to Axios:
+      ✅ No more rrweb clone errors
+      ❌ NEW ERROR: Worker returns 500 with "Cannot read properties of undefined (reading 'file_id')"
+      
+      User Confirmed:
+      - Video uploads to Telegram successfully (appears in channel)
+      - Worker returns 500 error instead of success
+      - PDFs and other files still work fine
+      
+      Root Cause Discovery:
+      The worker code assumed ALL files return under `result.document.file_id`, but:
+      
+      **Telegram API File Type Responses:**
+      - PDFs/Documents: `result.document.file_id` ✅
+      - Videos (.mp4): `result.video.file_id` ⚠️
+      - Audio files: `result.audio.file_id`
+      - Photos: `result.photo[0].file_id`
+      
+      The worker was trying to access `result.document.file_id` for videos, which is undefined!
+      
+      Solution Implemented:
+      Updated ALL worker templates to check multiple properties:
+      
+      **Cloudflare Worker** (cloudflare-worker.js lines 128-143):
+      ```javascript
+      const fileId = telegramResult.result.document?.file_id 
+        || telegramResult.result.video?.file_id
+        || telegramResult.result.audio?.file_id
+        || telegramResult.result.photo?.[0]?.file_id
+        || null;
+      
+      if (!fileId) {
+        throw new Error('Failed to get file_id from Telegram response');
+      }
+      ```
+      
+      **Vercel Serverless** (vercel-serverless.js lines 121-136):
+      - Same logic as Cloudflare worker
+      
+      **Render Service** (render-service.py lines 109-127):
+      ```python
+      file_id = (
+          result.get('document', {}).get('file_id') or
+          result.get('video', {}).get('file_id') or
+          result.get('audio', {}).get('file_id') or
+          (result.get('photo', [{}])[0].get('file_id') if result.get('photo') else None)
+      )
+      ```
+      
+      Benefits:
+      ✅ Supports ALL file types (videos, PDFs, audio, images)
+      ✅ Graceful handling - throws clear error if no file_id found
+      ✅ Uses optional chaining (?.) to prevent undefined errors
+      ✅ Future-proof for other Telegram file types
+      
+      **IMPORTANT FOR USER:**
+      You need to **REDEPLOY your Cloudflare worker** with the updated code from:
+      `/app/worker-templates/cloudflare-worker.js`
+      
+      The updated worker template is ready in the repo!
+      
+      After Redeployment:
+      ✅ Videos will upload with success message
+      ✅ PDFs continue to work
+      ✅ All file types supported
+      ✅ No more 500 errors
+
   - agent: "testing"
     message: |
       🎯 BULK SHARE FEATURE TESTING COMPLETE - ALL TESTS PASSED!
