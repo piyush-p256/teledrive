@@ -177,12 +177,19 @@ export default function Dashboard({ user, onLogout }) {
 
         workerData = workerResponse.data;
         
+        // Log the full response for debugging
+        console.log('Worker response status:', workerResponse.status);
+        console.log('Worker response data:', workerData);
+        
         // Check if the upload was successful
-        if (!workerData.success) {
-          throw new Error(workerData.error || 'Worker upload failed');
+        if (!workerData || !workerData.success) {
+          const errorMessage = workerData?.error || 'Worker upload failed';
+          console.error('Worker returned error:', errorMessage);
+          throw new Error(errorMessage);
         }
         
         if (!workerData.messageId) {
+          console.error('Worker response missing messageId:', workerData);
           throw new Error('Failed to get message ID from worker');
         }
       } catch (uploadError) {
