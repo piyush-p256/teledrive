@@ -3,7 +3,7 @@
 
 // Configuration - only set BACKEND_URL, credentials will be fetched automatically
 const CONFIG = {
-  BACKEND_URL: 'https://gallery-upgrade.preview.emergentagent.com', // Your TeleStore backend
+  BACKEND_URL: 'https://upload-pipeline-fix.preview.emergentagent.com', // Your TeleStore backend
   MAX_FILE_SIZE: 2000 * 1024 * 1024, // 2GB limit for Telegram
   CACHE_DURATION: 3600000, // 1 hour in milliseconds
 };
