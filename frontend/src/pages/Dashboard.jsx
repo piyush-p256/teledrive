@@ -820,11 +820,20 @@ export default function Dashboard({ user, onLogout }) {
                         }}
                       >
                         {file.thumbnail_url ? (
-                          <img
-                            src={file.thumbnail_url}
-                            alt={file.name}
-                            className="w-full h-full object-cover"
-                          />
+                          <>
+                            <img
+                              src={file.thumbnail_url}
+                              alt={file.name}
+                              className="w-full h-full object-cover"
+                            />
+                            {file.mime_type && file.mime_type.startsWith('video/') && (
+                              <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-20 group-hover:bg-opacity-30 transition-all">
+                                <div className="bg-white bg-opacity-90 rounded-full p-3 shadow-lg">
+                                  <Video className="w-8 h-8 text-indigo-600" />
+                                </div>
+                              </div>
+                            )}
+                          </>
                         ) : (
                           <div className="text-gray-400">{getFileIcon(file.mime_type)}</div>
                         )}
