@@ -451,6 +451,9 @@ workers:
       - working: "NA"
         agent: "main"
         comment: "Completely refactored worker to fetch credentials from backend using authToken. Implemented in-memory caching with 1-hour duration. Removed hardcoded credentials. Requires authToken in upload requests."
+      - working: "NA"
+        agent: "main"
+        comment: "FIXED VIDEO UPLOAD: Added support for different Telegram file types. Worker now checks result.document.file_id OR result.video.file_id OR result.audio.file_id OR result.photo[0].file_id. Telegram returns videos under 'video' property, not 'document'. Lines 128-143 updated."
 
   - task: "Update Vercel serverless template with credential fetching and caching"
     implemented: true
