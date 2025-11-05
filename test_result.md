@@ -466,6 +466,9 @@ workers:
       - working: "NA"
         agent: "main"
         comment: "Implemented same credential fetching logic as Cloudflare worker. In-memory cache with 1-hour expiry. Only BACKEND_URL environment variable needed."
+      - working: "NA"
+        agent: "main"
+        comment: "FIXED VIDEO UPLOAD: Added support for different Telegram file types. Same fix as Cloudflare worker - checks multiple properties for file_id based on file type."
 
   - task: "Update Render service template with credential fetching and caching"
     implemented: true
