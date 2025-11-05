@@ -146,6 +146,16 @@ export default function Dashboard({ user, onLogout }) {
         
         // Create image element for face detection
         imageElement = await loadImageFromFile(file);
+      } else if (file.type.startsWith('video/')) {
+        // Generate video thumbnail
+        thumbnailUrl = await generateVideoThumbnail(file);
+        if (user.imgbb_api_key && thumbnailUrl) {
+          thumbnailUrl = await uploadToImgbb(thumbnailUrl);
+          thumbnailProvider = 'imgbb';
+        } else if (user.cloudinary_api_key && thumbnailUrl) {
+          thumbnailUrl = await uploadToCloudinary(thumbnailUrl);
+          thumbnailProvider = 'cloudinary';
+        }
       }
 
       // Upload to Telegram via worker
@@ -158,11 +168,19 @@ export default function Dashboard({ user, onLogout }) {
         body: formData,
       });
 
-      if (!workerResponse.ok) {
-        throw new Error('Worker upload failed');
+      // Read response body immediately to avoid "body already used" error
+      let workerData;
+      try {
+        workerData = await workerResponse.json();
+      } catch (jsonError) {
+        console.error('Failed to parse worker response:', jsonError);
+        throw new Error('Invalid response from worker');
       }
 
-      const workerData = await workerResponse.json();
+      // Check response after reading the body
+      if (!workerResponse.ok) {
+        throw new Error(workerData.error || 'Worker upload failed');
+      }
       
       if (!workerData.success || !workerData.messageId) {
         throw new Error(workerData.error || 'Failed to get message ID from worker');
