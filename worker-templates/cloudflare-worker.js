@@ -132,7 +132,18 @@ export default {
       }
 
       const messageId = telegramResult.result.message_id;
-      const fileId = telegramResult.result.document.file_id;
+      
+      // Telegram returns different properties based on file type
+      // Videos: result.video, Documents: result.document, Audio: result.audio, Photos: result.photo
+      const fileId = telegramResult.result.document?.file_id 
+        || telegramResult.result.video?.file_id
+        || telegramResult.result.audio?.file_id
+        || telegramResult.result.photo?.[0]?.file_id
+        || null;
+      
+      if (!fileId) {
+        throw new Error('Failed to get file_id from Telegram response');
+      }
 
       // Note: File metadata is created by the frontend after upload
       // No need to notify backend here to avoid blocking the response
