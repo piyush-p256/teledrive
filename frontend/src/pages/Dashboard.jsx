@@ -163,27 +163,40 @@ export default function Dashboard({ user, onLogout }) {
       formData.append('file', file);
       formData.append('authToken', localStorage.getItem('token'));
 
-      const workerResponse = await fetch(user.worker_url, {
-        method: 'POST',
-        body: formData,
-      });
-
-      // Read response body immediately to avoid "body already used" error
+      let workerResponse;
       let workerData;
-      try {
-        workerData = await workerResponse.json();
-      } catch (jsonError) {
-        console.error('Failed to parse worker response:', jsonError);
-        throw new Error('Invalid response from worker');
-      }
-
-      // Check response after reading the body
-      if (!workerResponse.ok) {
-        throw new Error(workerData.error || 'Worker upload failed');
-      }
       
-      if (!workerData.success || !workerData.messageId) {
-        throw new Error(workerData.error || 'Failed to get message ID from worker');
+      try {
+        workerResponse = await fetch(user.worker_url, {
+          method: 'POST',
+          body: formData,
+        });
+
+        // Clone the response before consuming it (for error handling)
+        const responseClone = workerResponse.clone();
+        
+        // Try to parse JSON from the original response
+        try {
+          workerData = await workerResponse.json();
+        } catch (jsonError) {
+          // If JSON parsing fails, try to get text from clone
+          const errorText = await responseClone.text();
+          console.error('Failed to parse worker response:', jsonError);
+          console.error('Response text:', errorText);
+          throw new Error(`Invalid response from worker: ${errorText.substring(0, 100)}`);
+        }
+
+        // Check if the upload was successful
+        if (!responseClone.ok || !workerData.success) {
+          throw new Error(workerData.error || `Worker upload failed with status ${responseClone.status}`);
+        }
+        
+        if (!workerData.messageId) {
+          throw new Error('Failed to get message ID from worker');
+        }
+      } catch (fetchError) {
+        console.error('Worker upload error:', fetchError);
+        throw fetchError;
       }
 
       // Create file metadata
