@@ -134,19 +134,8 @@ export default {
       const messageId = telegramResult.result.message_id;
       const fileId = telegramResult.result.document.file_id;
 
-      // Notify backend
-      await fetch(`${CONFIG.BACKEND_URL}/api/webhook/upload`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId,
-          fileName,
-          messageId,
-          fileId,
-          size: file.size,
-          mimeType: file.type,
-        }),
-      });
+      // Note: File metadata is created by the frontend after upload
+      // No need to notify backend here to avoid blocking the response
 
       return new Response(
         JSON.stringify({
