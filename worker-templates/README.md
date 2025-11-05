@@ -233,6 +233,27 @@ Expected response:
 - Worker templates include CORS headers
 - Check that your frontend URL is correct
 
+### "500 Internal Server Error" after successful upload
+**IMPORTANT UPDATE (v2.0)**: If you deployed a worker before this update, you need to redeploy it.
+
+**Symptoms:**
+- Video/file uploads to Telegram successfully
+- But frontend shows "Response body is already used" error
+- File doesn't appear in UI even though it's in Telegram
+
+**Cause:**
+Older worker versions had an unnecessary webhook notification that could fail after successful upload.
+
+**Solution:**
+1. Copy the updated worker code from this directory
+2. Redeploy to your Cloudflare/Vercel/Render account
+3. Worker will now return immediately after Telegram upload (faster & more reliable)
+
+**What Changed:**
+- Removed blocking webhook call after Telegram upload
+- Frontend now creates file metadata directly (more reliable)
+- Worker is simpler and faster
+
 ---
 
 ## Security Notes
