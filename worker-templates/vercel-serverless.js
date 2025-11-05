@@ -125,7 +125,18 @@ export default async function handler(req, res) {
     }
 
     const messageId = telegramResult.result.message_id;
-    const fileId = telegramResult.result.document.file_id;
+    
+    // Telegram returns different properties based on file type
+    // Videos: result.video, Documents: result.document, Audio: result.audio, Photos: result.photo
+    const fileId = telegramResult.result.document?.file_id 
+      || telegramResult.result.video?.file_id
+      || telegramResult.result.audio?.file_id
+      || telegramResult.result.photo?.[0]?.file_id
+      || null;
+    
+    if (!fileId) {
+      throw new Error('Failed to get file_id from Telegram response');
+    }
 
     // Notify backend
     await fetch(`${CONFIG.BACKEND_URL}/api/webhook/upload`, {
