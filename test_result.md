@@ -284,13 +284,19 @@ frontend:
     implemented: true
     working: true
     file: "/app/frontend/src/pages/Dashboard.jsx"
-    stuck_count: 0
+    stuck_count: 1
     priority: "high"
-    needs_retesting: false
+    needs_retesting: true
     status_history:
       - working: true
         agent: "main"
         comment: "FIXED: Changed response handling in uploadFile function (lines 123-203). Now reads response body immediately with await workerResponse.json() before checking workerResponse.ok. This prevents 'Response body is already used' error that occurred with video uploads. Added proper error handling for JSON parsing."
+      - working: false
+        agent: "user"
+        comment: "User reported: Video uploads to Telegram successfully but shows error in console. Error: 'TypeError: Failed to execute 'clone' on 'Response': Response body is already used' at rrweb-recorder-20250919-1.js:377. Worker returns 500 status."
+      - working: true
+        agent: "main"
+        comment: "FIXED (IMPROVED): The issue was caused by rrweb-recorder (Emergent's session recording library) trying to clone the Response object for recording, which failed. Changed to read response as TEXT first (workerResponse.text()), then manually parse as JSON. This avoids the clone issue entirely since text() consumes the body only once. Lines 161-197 updated with new error handling strategy."
 
   - task: "Add video thumbnail generation"
     implemented: true
