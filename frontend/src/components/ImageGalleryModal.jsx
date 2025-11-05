@@ -336,12 +336,12 @@ export default function ImageGalleryModal({ photos, initialIndex = 0, onClose })
                   ref={videoRef}
                   src={imageUrl}
                   className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
+                  controls
                   onTimeUpdate={handleTimeUpdate}
                   onLoadedMetadata={handleLoadedMetadata}
                   onPlay={() => setIsPlaying(true)}
                   onPause={() => setIsPlaying(false)}
                   onError={() => setError('Failed to load video')}
-                  onClick={togglePlayPause}
                 />
 
                 {/* Video Controls Overlay */}
