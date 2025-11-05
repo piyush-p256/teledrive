@@ -163,21 +163,34 @@ export default function Dashboard({ user, onLogout }) {
       formData.append('file', file);
       formData.append('authToken', localStorage.getItem('token'));
 
-      const workerResponse = await fetch(user.worker_url, {
-        method: 'POST',
-        body: formData,
-      });
+      let workerData;
+      try {
+        const workerResponse = await fetch(user.worker_url, {
+          method: 'POST',
+          body: formData,
+        });
 
-      // Parse the response
-      const workerData = await workerResponse.json();
-      
-      // Check if the upload was successful
-      if (!workerData.success) {
-        throw new Error(workerData.error || 'Worker upload failed');
-      }
-      
-      if (!workerData.messageId) {
-        throw new Error('Failed to get message ID from worker');
+        // Parse the response - handle both success and error responses
+        try {
+          workerData = await workerResponse.json();
+        } catch (jsonError) {
+          console.error('Failed to parse worker response JSON:', jsonError);
+          // If we can't parse the response, throw a generic error
+          throw new Error(`Worker returned invalid response (status: ${workerResponse.status})`);
+        }
+        
+        // Check if the upload was successful
+        if (!workerData.success) {
+          throw new Error(workerData.error || 'Worker upload failed');
+        }
+        
+        if (!workerData.messageId) {
+          throw new Error('Failed to get message ID from worker');
+        }
+      } catch (fetchError) {
+        // Log the error details
+        console.error('Worker upload error details:', fetchError);
+        throw fetchError;
       }
 
       // Create file metadata
