@@ -322,6 +322,66 @@ export default function Dashboard({ user, onLogout }) {
     });
   };
 
+  const generateVideoThumbnail = (file) => {
+    return new Promise((resolve) => {
+      const video = document.createElement('video');
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      
+      video.preload = 'metadata';
+      video.muted = true;
+      video.playsInline = true;
+      
+      video.onloadedmetadata = () => {
+        // Seek to 1 second or 10% of video duration, whichever is smaller
+        video.currentTime = Math.min(1, video.duration * 0.1);
+      };
+      
+      video.onseeked = () => {
+        try {
+          const maxSize = 200;
+          let width = video.videoWidth;
+          let height = video.videoHeight;
+
+          if (width > height) {
+            if (width > maxSize) {
+              height = (height * maxSize) / width;
+              width = maxSize;
+            }
+          } else {
+            if (height > maxSize) {
+              width = (width * maxSize) / height;
+              height = maxSize;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          ctx.drawImage(video, 0, 0, width, height);
+          
+          const thumbnailUrl = canvas.toDataURL('image/jpeg', 0.7);
+          
+          // Clean up
+          video.src = '';
+          video.load();
+          
+          resolve(thumbnailUrl);
+        } catch (error) {
+          console.error('Error generating video thumbnail:', error);
+          resolve(null);
+        }
+      };
+      
+      video.onerror = () => {
+        console.error('Error loading video for thumbnail');
+        resolve(null);
+      };
+      
+      // Load video file
+      video.src = URL.createObjectURL(file);
+    });
+  };
+
   const uploadToCloudinary = async (dataUrl) => {
     // Mock implementation - user needs to configure
     return dataUrl;
