@@ -170,13 +170,23 @@ export default function Dashboard({ user, onLogout }) {
           body: formData,
         });
 
-        // Parse the response - handle both success and error responses
+        // Read response as text first to avoid rrweb clone issues
+        // The rrweb-recorder library tries to clone responses, which can fail
+        // Reading as text consumes the body only once and avoids the clone error
+        let responseText;
         try {
-          workerData = await workerResponse.json();
+          responseText = await workerResponse.text();
+        } catch (textError) {
+          console.error('Failed to read worker response:', textError);
+          throw new Error('Worker returned unreadable response');
+        }
+
+        // Parse the JSON manually
+        try {
+          workerData = JSON.parse(responseText);
         } catch (jsonError) {
-          console.error('Failed to parse worker response JSON:', jsonError);
-          // If we can't parse the response, throw a generic error
-          throw new Error(`Worker returned invalid response (status: ${workerResponse.status})`);
+          console.error('Failed to parse worker response JSON:', responseText);
+          throw new Error(`Worker returned invalid JSON (status: ${workerResponse.status})`);
         }
         
         // Check if the upload was successful
