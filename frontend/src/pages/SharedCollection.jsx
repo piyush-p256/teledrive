@@ -140,7 +140,7 @@ export default function SharedCollection() {
               </div>
               <div>
                 <h1 className="text-2xl font-bold text-indigo-600" style={{ fontFamily: 'Space Grotesk, sans-serif' }}>
-                  TeleStore
+                  TeleDrive
                 </h1>
                 <p className="text-xs text-gray-500">Shared Collection</p>
               </div>

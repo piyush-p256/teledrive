@@ -69,7 +69,7 @@ export default function Auth({ onLogin }) {
                 <HardDrive className="w-8 h-8 text-white" />
               </div>
               <h1 className="text-5xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent" style={{ fontFamily: 'Space Grotesk, sans-serif' }}>
-                TeleStore
+                TeleDrive
               </h1>
             </div>
             <p className="text-lg text-gray-600 leading-relaxed">

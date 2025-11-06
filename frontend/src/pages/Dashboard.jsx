@@ -619,7 +619,7 @@ export default function Dashboard({ user, onLogout }) {
                 <HardDrive className="w-6 h-6 text-white" />
               </div>
               <h1 className="text-2xl font-bold text-indigo-600" style={{ fontFamily: 'Space Grotesk, sans-serif' }}>
-                TeleStore
+                TeleDrive
               </h1>
             </div>
 
